@@ -3150,22 +3150,45 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     if should_output:
                         key = ""
+                        quote = ""
+                        is_int = False
+
                         if len(line.split(" ")) > 1:
                             key = line.split(" ")[1]
+
+                            try:
+                                key_int = int(key)
+                                is_int = True
+                            except:
+                                pass
                         else:
                             key = random.choice(list(self.config['quotes'].keys()))
+                            is_int = True
 
-                        if self.config['quotes'].get(key):
-                            quote = 'Quote #' + key + ' "'
-                            quote += self.config['quotes'][key]
-                            quote += '" -' + self.username
+                        if is_int:
+                            if self.config['quotes'].get(key):
+                                quote = 'Quote #' + key + ' "'
+                                quote += self.config['quotes'][key]
+                                quote += '" -' + self.username
+                            else:
+                                self.output_msg(c, "Quote #" + key + " not found", source_user)
+                        else:
+                            matches = [q for q in self.config['quotes'].values() if key.lower() in q.lower()]
+                            if len(matches) > 0:
+                                selected_match = random.choice(matches)
+                                for k, v in self.config['quotes'].items():
+                                    if v == selected_match:
+                                        quote = 'Quote #' + k + ' "'
+                                        quote += self.config['quotes'][k]
+                                        quote += '" -' + self.username
+                            else:
+                                self.output_msg(c, "Quote containing '" + key + "' not found", source_user)
 
+                        if len(quote) > 0:
                             self.output_msg(c, quote, source_user)
 
-                            # Update last output time
-                            self.extra_command_cooldown["!quote"] = current_time
-                        else:
-                            self.output_msg(c, "Quote #" + key + " not found", source_user)
+                        # Update last output time
+                        self.extra_command_cooldown["!quote"] = current_time
                 else:
                     self.output_msg(c, "No quotes available", source_user)
 
