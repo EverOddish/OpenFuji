@@ -30,6 +30,7 @@ from bs4 import BeautifulSoup
 from datetime import timedelta
 from whoosh.spelling import ListCorrector
 from anagram import Anagram
+import wikipedia
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(stream=sys.stdout)
@@ -988,6 +989,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!combo",
             "!attempt",
             "!swearjar",
+            "!define",
         ]
         for c in cmds:
             if cmd.startswith(c):
@@ -1026,6 +1028,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!addquote",
             "!delquote",
             "!swearjar",
+            "!define",
         ]
         for c in cmds:
             if cmd.startswith(c):
@@ -3383,6 +3386,29 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.config['swearjar'] = swearjar
                 self.update_config()
                 self.output_msg(c, "Swear jar: " + str(swearjar), source_user)
+
+        elif line.startswith("!define"):
+            if len(line.split(" ")) >= 2:
+                replacement = line.split(" ", 1)[1].rstrip("\n").rstrip("\r")
+            else:
+                replacement = 'Nuzlocke'
+            success = False
+            while not success:
+                try:
+                    random_title = wikipedia.random()
+                    print(random_title)
+                    summary = wikipedia.summary(random_title)
+                    if '(' in random_title:
+                        random_title = random_title[:random_title.index('(')]
+                    summary = summary.replace('\n', ' ')
+                    if len(summary) > 248:
+                        summary = summary[:248]
+                    nuzlocke_re = re.compile(random_title, re.IGNORECASE)
+                    summary = nuzlocke_re.sub(replacement, summary)
+                    self.output_msg(c, summary, source_user)
+                    success = True
+                except:
+                    pass
 
         # NEW COMMANDS GO HERE ^^^
 
