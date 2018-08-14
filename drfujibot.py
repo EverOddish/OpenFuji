@@ -1095,10 +1095,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
     def handle_raid_or_meme(self, c, line):
         if self.meme_mode:
             if "pokemonchallenges" == self.username.lower():
-                if self.last_line == line and line != "F":
+                if self.last_line == line and line != "F" and line != "f":
                     self.same_counter += 1
                 else:
-                    if self.same_counter >= 3 and self.last_line != "F":
+                    if self.same_counter >= 5 and self.last_line != "F" and self.last_line != "f":
                         self.output_msg(c, str(self.same_counter) + "x combo ( " + self.last_line + " )", "drfujibot")
                         if self.same_counter > self.config['highest_combo'][0]:
                             pair = []
