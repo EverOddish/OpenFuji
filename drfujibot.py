@@ -2919,19 +2919,37 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
         elif line.startswith("!credit"):
             if len(line.split(" ")) >= 3:
-                user = line.split(" ")[1]
-                coins = int(line.split(" ")[2])
+                arg1 = line.split(" ")[1]
+                arg2 = line.split(" ")[2]
+                success = False
 
-                with self.coin_lock:
-                    if None == self.coin_data['coins'].get(user):
-                        self.coin_data['coins'][user] = coins
-                    else:
-                        self.coin_data['coins'][user] += coins
-                    self.update_coin_data()
+                try:
+                    coins = int(arg1)
+                    user = arg2
+                    success = True
+                except:
+                    pass
 
-                output = "Credited " + str(coins) + " coins to @" + user
+                try:
+                    coins = int(arg2)
+                    user = arg1
+                    success = True
+                except:
+                    pass
 
-                self.output_msg(c, output, source_user)
+                if success:
+                    with self.coin_lock:
+                        if None == self.coin_data['coins'].get(user):
+                            self.coin_data['coins'][user] = coins
+                        else:
+                            self.coin_data['coins'][user] += coins
+                        self.update_coin_data()
+
+                    output = "Credited " + str(coins) + " coins to @" + user
+
+                    self.output_msg(c, output, source_user)
+                else:
+                    self.output_msg(c, "Format: !credit <user> <coins>", source_user)
 
         elif line.startswith("!coins"):
             if self.whisperMode:
