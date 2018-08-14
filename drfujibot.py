@@ -237,7 +237,6 @@ def is_global_command(line):
         "!bet",
         "!coins",
         "!balance",
-        "!odds",
         "!honestly",
         "!daily",
         "!song",
@@ -381,6 +380,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
         # For betting
         self.open_events = {}
+        self.open_event_rewards = {}
         self.closed_events = {}
 
         self.last_line = ""
@@ -423,6 +423,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 # event name, bet dict
                 for (k, v) in self.config['open_events'].items():
                     self.open_events[k] = v
+
+            if None == self.config.get('open_event_rewards'):
+                self.config['open_event_rewards'] = {}
+            if self.config.get('open_event_rewards'):
+                # event name, reward
+                for (k, v) in self.config['open_event_rewards'].items():
+                    self.open_event_rewards[k] = v
 
             if self.config.get('closed_events'):
                 # event name, bet dict
@@ -704,12 +711,16 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 if None != self.bet_config['events'].get(event_name):
                     if result in self.bet_config['events'][event_name]['outcomes'].keys():
 
+                        payout = self.open_event_rewards[event_name]
+
                         # If it wasn't closed before resolve, close it now
                         if event_name in self.open_events.keys():
                             self.closed_events[event_name] = self.open_events[event_name]
                             del self.open_events[event_name]
+                            del self.open_event_rewards[event_name]
 
                             self.config['open_events'] = self.open_events
+                            self.config['open_event_rewards'] = self.open_event_rewards
                             self.config['closed_events'] = self.closed_events
                             self.update_config()
 
@@ -739,16 +750,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             if len(winners) > 0:
                                 if self.bet_config['events'].get(event_name):
                                     output = "'" + event_name + "' event winners get a payout! "
-                                else:
-                                    output = "'" + event_name + "' event winners splitting " + str(pot) + " coins! " + ", ".join(winners)
                             else:
                                 output = "Unfortunately, there were no winners for the '" + event_name + "' event"
 
                             first_time_winners = []
 
-                            if len(winners) > 0:
-                                payout = pot / len(winners)
-                            else:
+                            if len(winners) == 0:
                                 payout = 0
 
                             bet_info = self.bet_config['events'].get(event_name)
@@ -756,10 +763,6 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             with self.coin_lock:
                                 for w in winners:
                                     if bet_info:
-                                        bet = self.closed_events[event_name][w][0]
-                                        odds = self.bet_config['events'][event_name]['outcomes'][bet]
-                                        wager = self.closed_events[event_name][w][1]
-                                        payout = wager * ( ( odds[0] / odds[1] ) + 1 )
                                         output += w + '(' + str(int(payout)) + ') '
                                     self.coin_data['coins'][w] += payout
 
@@ -801,25 +804,31 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
     def new_bet(self, c, line, source_user):
         if self.foundCoinFile:
-            if len(line.split(" ")) == 2:
+            if len(line.split(" ")) == 3:
                 event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                event_reward = 0
+                try:
+                    event_reward = int(line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
+                except:
+                    self.output_msg(c, "Invalid reward", source_user)
 
-                #if event_name not in self.open_events.keys():
-                if len(self.open_events.keys()) == 0:
-                    if event_name not in self.closed_events.keys():
-                        self.open_events[event_name] = {}
-                        output = "Betting has opened! Use '!bet <guess> <number_of_coins>' to play!"
-                        self.output_msg(c, output, source_user)
+                if event_reward > 0:
+                    if len(self.open_events.keys()) == 0:
+                        if event_name not in self.closed_events.keys():
+                            self.open_events[event_name] = {}
+                            self.open_event_rewards[event_name] = event_reward
+                            output = "Betting has opened! Use '!bet <guess>' to play!"
+                            self.output_msg(c, output, source_user)
 
-                        self.config['open_events'] = self.open_events
-                        self.update_config()
+                            self.config['open_events'] = self.open_events
+                            self.config['open_event_rewards'] = self.open_event_rewards
+                            self.update_config()
+                        else:
+                            self.output_msg(c, "Existing event '" + event_name + "' must be resolved", source_user)
                     else:
-                        self.output_msg(c, "Existing event '" + event_name + "' must be resolved", source_user)
-                else:
-                    #self.output_msg(c, "Event '" + event_name + "' is already in progress", source_user)
-                    self.output_msg(c, "There is an open event already in progress", source_user)
+                        self.output_msg(c, "There is an open event already in progress: " + list(self.open_events.keys())[0], source_user)
             else:
-                self.output_msg(c, "Event name must not contain spaces", source_user)
+                self.output_msg(c, "Format: !event <name> <reward>", source_user)
         else:
             self.output_msg(c, "Betting has not been configured", source_user)
 
@@ -963,7 +972,6 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!cancel",
             "!resolve",
             "!bet",
-            "!odds",
             "!daily",
             "!balance",
             "!leaderboard",
@@ -2701,26 +2709,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
 
                     if event_name in self.open_events.keys():
+                        wager = self.open_event_rewards[event_name]
                         for user in self.open_events[event_name].keys():
-                            wager = self.open_events[event_name][user][1]
                             self.coin_data['coins'][user] += wager
                         self.update_coin_data()
 
                         del self.open_events[event_name]
+                        del self.open_event_rewards[event_name]
                         self.output_msg(c, "Event '" + event_name + "' has been cancelled, and all bets refunded", source_user)
 
                         self.config['open_events'] = self.open_events
+                        self.config['open_event_rewards'] = self.open_event_rewards
                         self.update_config()
                     elif event_name in self.closed_events.keys():
                         for user in self.closed_events[event_name].keys():
-                            wager = self.closed_events[event_name][user][1]
+                            wager = self.open_event_rewards[event_name]
                             self.coin_data['coins'][user] += wager
                         self.update_coin_data()
 
                         del self.closed_events[event_name]
+                        del self.open_event_rewards[event_name]
                         self.output_msg(c, "Event '" + event_name + "' has been cancelled, and all bets refunded", source_user)
 
                         self.config['closed_events'] = self.closed_events
+                        self.config['open_event_rewards'] = self.open_event_rewards
                         self.update_config()
                     else:
                         self.output_msg(c, "Event '" + event_name + "' not found", source_user)
@@ -2732,71 +2744,46 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         elif line.startswith("!resolve"):
             self.resolve_bet(c, line, source_user)
 
-        elif line.startswith("!odds"):
-            if len(self.moderators) > 0:
-                if len(line.split(" ")) == 2:
-                    event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
-
-                    output = ""
-                    odds_message = None
-                    event = self.bet_config['events'].get(event_name)
-                    if None != event:
-                        odds_message = event['odds_message']
-
-                    if None == odds_message:
-                        output = "Odds not set for event '" + event_name + "', split pot is in effect"
-                    else:
-                        output = odds_message
-
-                    self.output_msg(c, output, source_user)
-                else:
-                    self.output_msg(c, "Format: !odds <event_name>", source_user)
-
         elif line.startswith("!bet"):
-            if len(line.split(" ")) == 3:
-                #event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+            if len(line.split(" ")) == 2:
                 guess = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
                 try:
-                    coins = int(line.split(" ")[2].rstrip("\n").rstrip("\r"))
+                    if len(self.open_events.keys()) == 1:
+                        event_name = list(self.open_events.keys())[0]
+                        coins = self.open_event_rewards[event_name]
+                        if guess in self.bet_config['events'][event_name]['outcomes'].keys():
+                            with self.coin_lock:
+                                if None == self.coin_data['coins'].get(source_user):
+                                    # If it's a new user and the coin loop hasn't run yet
+                                    self.coin_data['coins'][source_user] = 0
 
-                    if coins > 0:
-                        #if event_name in self.open_events.keys():
-                        if len(self.open_events.keys()) == 1:
-                            event_name = list(self.open_events.keys())[0]
-                            if guess in self.bet_config['events'][event_name]['outcomes'].keys():
-                                with self.coin_lock:
-                                    if None == self.coin_data['coins'].get(source_user):
-                                        # If it's a new user and the coin loop hasn't run yet
-                                        self.coin_data['coins'][source_user] = 0
+                                refund = 0
+                                previous = self.open_events[event_name].get(source_user)
+                                if None != previous:
+                                    refund = previous[1]
 
-                                    refund = 0
-                                    previous = self.open_events[event_name].get(source_user)
-                                    if None != previous:
-                                        refund = previous[1]
+                                if self.coin_data['coins'][source_user] + refund >= coins:
+                                    self.open_events[event_name][source_user] = (guess, coins)
 
-                                    if self.coin_data['coins'][source_user] + refund >= coins:
-                                        self.open_events[event_name][source_user] = (guess, coins)
+                                    # Issue any refund from previous bet (can be 0)
+                                    self.coin_data['coins'][source_user] += refund
 
-                                        # Issue any refund from previous bet (can be 0)
-                                        self.coin_data['coins'][source_user] += refund
+                                    # Subtract the wager immediately
+                                    self.coin_data['coins'][source_user] -= coins
+                                    self.update_coin_data()
 
-                                        # Subtract the wager immediately
-                                        self.coin_data['coins'][source_user] -= coins
-                                        self.update_coin_data()
-
-                                        self.config['open_events'] = self.open_events
-                                        self.update_config()
-                                    else:
-                                        self.output_msg(c, "@" + source_user + " You don't have enough coins for that bet!", source_user)
-                            else:
-                                self.output_msg(c, "@" + source_user + " Not a valid outcome!", source_user)
+                                    self.config['open_events'] = self.open_events
+                                    self.update_config()
+                                else:
+                                    self.output_msg(c, "@" + source_user + " You don't have enough coins for that bet!", source_user)
                         else:
-                            #self.output_msg(c, "Could not find active event '" + event_name + "'", source_user)
-                            self.output_msg(c, "Could not find active event", source_user)
+                            self.output_msg(c, "@" + source_user + " Not a valid outcome!", source_user)
+                    else:
+                        self.output_msg(c, "Could not find active event", source_user)
                 except:
-                    self.output_msg(c, "Format: !bet <guess> <number_of_coins>", source_user)
+                    self.output_msg(c, "Format: !bet <guess>", source_user)
             else:
-                self.output_msg(c, "Format: !bet <guess> <number_of_coins>", source_user)
+                self.output_msg(c, "Format: !bet <guess>", source_user)
 
         elif line.startswith("!daily"):
             if not self.whisperMode and self.username != 'everoddish':
@@ -2861,7 +2848,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             self.resolve_bet(c, command, source_user)
 
                             # Start a new badge bet
-                            command = "!event badges"
+                            command = "!event badges 10000"
                             self.new_bet(c, command, source_user)
 
                             if None != self.config['current_run'] and None != self.config['run_data']:
