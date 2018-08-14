@@ -1037,6 +1037,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!delquote",
             "!swearjar",
             "!define",
+            "!credit",
         ]
         for c in cmds:
             if cmd.startswith(c):
@@ -2904,22 +2905,20 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.output_msg(c, output, source_user)
 
         elif line.startswith("!credit"):
-            # PokemonRealtime or broadcaster only
-            if source_user.lower() == "pokemonrealtime" or source_user.lower() == self.username.lower():
-                if len(line.split(" ")) >= 3:
-                    user = line.split(" ")[1]
-                    coins = int(line.split(" ")[2])
+            if len(line.split(" ")) >= 3:
+                user = line.split(" ")[1]
+                coins = int(line.split(" ")[2])
 
-                    with self.coin_lock:
-                        if None == self.coin_data['coins'].get(user):
-                            self.coin_data['coins'][user] = coins
-                        else:
-                            self.coin_data['coins'][user] += coins
-                        self.update_coin_data()
+                with self.coin_lock:
+                    if None == self.coin_data['coins'].get(user):
+                        self.coin_data['coins'][user] = coins
+                    else:
+                        self.coin_data['coins'][user] += coins
+                    self.update_coin_data()
 
-                    output = "Credited " + str(coins) + " coins to @" + user
+                output = "Credited " + str(coins) + " coins to @" + user
 
-                    self.output_msg(c, output, source_user)
+                self.output_msg(c, output, source_user)
 
         elif line.startswith("!coins"):
             if self.whisperMode:
