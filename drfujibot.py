@@ -119,7 +119,7 @@ def fix_z_move(name):
     return name
 
 def get_coin_balances(source_user):
-    output = "@" + source_user + " : You have "
+    output = source_user + " : You have "
 
     with open('PokemonChallenges_coins.json', 'r') as coin_file:
         coin_info = json.load(coin_file)
@@ -2910,7 +2910,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         self.output_msg(c, output, source_user)
 
         elif line.startswith("!balance"):
-            if "pokemonchallenges" == self.username.lower():
+            if self.whisperMode:
 
                 output = get_coin_balances(source_user)
 
