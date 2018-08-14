@@ -2765,20 +2765,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 if None != previous:
                                     refund = previous[1]
 
-                                if self.coin_data['coins'][source_user] + refund >= coins:
-                                    self.open_events[event_name][source_user] = (guess, coins)
-
-                                    # Issue any refund from previous bet (can be 0)
-                                    self.coin_data['coins'][source_user] += refund
-
-                                    # Subtract the wager immediately
-                                    self.coin_data['coins'][source_user] -= coins
-                                    self.update_coin_data()
-
-                                    self.config['open_events'] = self.open_events
-                                    self.update_config()
-                                else:
-                                    self.output_msg(c, "@" + source_user + " You don't have enough coins for that bet!", source_user)
+                                self.open_events[event_name][source_user] = (guess, coins)
+                                self.config['open_events'] = self.open_events
+                                self.update_config()
                         else:
                             self.output_msg(c, "@" + source_user + " Not a valid outcome!", source_user)
                     else:
@@ -2916,6 +2905,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 output = get_coin_balances(source_user)
 
                 self.output_msg(c, output, source_user)
+            else:
+                self.output_msg(c, 'The !balance command has returned to whisper-only mode! Type "/w DrFujiBot !balance" to see your coins!', source_user)
 
         elif line.startswith("!credit"):
             if len(line.split(" ")) >= 3:
