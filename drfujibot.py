@@ -1038,6 +1038,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!swearjar",
             "!define",
             "!credit",
+            "!so",
+            "!shoutout",
         ]
         for c in cmds:
             if cmd.startswith(c):
