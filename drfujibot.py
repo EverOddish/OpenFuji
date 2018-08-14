@@ -2803,7 +2803,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 if diff.days >= 1:
                     more_coins = random.randint(0, 100)
 
+                    crit = random.randint(1, 16)
+
+                    if 1 == crit:
+                        more_coins *= 2
+
                     output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins!"
+
+                    if 1 == crit:
+                        output += " A critical hit!"
 
                     timestamp = time.mktime(now.timetuple())
                     self.coin_data['last_daily_bonus'][source_user] = timestamp
