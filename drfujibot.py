@@ -419,6 +419,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             else:
                 self.fallen = {}
 
+            if self.config.get('fallen_timestamps'):
+                # Keys are names, values are timestamps of final respects
+                self.fallen_timestamps = self.config.get('fallen_timestamps')
+            else:
+                self.fallen_timestamps = {}
+
             if self.config.get('open_events'):
                 # event name, bet dict
                 for (k, v) in self.config['open_events'].items():
@@ -1236,10 +1242,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 if now - self.current_deaths[name] >= 20:
                     num_respects = len(self.deaths_dict[name])
                     self.fallen[name] = num_respects
+                    self.fallen_timestamps[name] = now
 
                     self.output_msg(c, str(num_respects) + " respects for " + name, source_user)
 
                     self.config['fallen'] = self.fallen
+                    self.config['fallen_timestamps'] = self.fallen_timestamps
                     self.update_config()
 
                     names_to_delete.append(name)
@@ -2492,7 +2500,11 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 deaths = str(self.deaths)
             else:
                 deaths = str(deaths)
-            self.output_msg(c, "There have been " + deaths + " deaths so far", source_user)
+            sorted_fallen = sorted(self.fallen_timestamps.items(), key=operator.itemgetter(1), reverse=True)
+            recent_deaths = []
+            for i in range(min(3, len(sorted_fallen))):
+                recent_deaths.append(sorted_fallen[i][0])
+            self.output_msg(c, "There have been " + deaths + " deaths so far. Most recent deaths (latest first): " + ", ".join(recent_deaths), source_user)
 
         elif line.startswith("!setdeaths"):
             if len(line.split(" ")) == 2:
