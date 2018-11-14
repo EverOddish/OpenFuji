@@ -1,3 +1,13 @@
+# Meta files
+PCCE.json
+bee.txt
+shaq.txt
+whisper_users.json
+
+# VirtualEnv
+bin
+include
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
