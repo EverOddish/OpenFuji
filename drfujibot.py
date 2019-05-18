@@ -1,4 +1,5 @@
 import sys
+import math
 import socket
 import datetime
 import urllib
@@ -25,12 +26,14 @@ import iso8601
 import traceback
 import copy
 import requests
+import shutil
 #import requests_cache
 from bs4 import BeautifulSoup
 from datetime import timedelta
 from whoosh.spelling import ListCorrector
 from anagram import Anagram
 import wikipedia
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(stream=sys.stdout)
@@ -49,6 +52,20 @@ def handle_exception(exc_type, exc_value, exc_traceback):
         f.write(output)
 
     os._exit(1)
+
+def load_words(filename='/usr/share/dict/american-english'):
+    with open(filename) as f:
+        for word in f:
+            yield word.rstrip()
+
+g_words = load_words()
+
+def get_anagrams(source=g_words):
+    d = defaultdict(list)
+    for word in source:
+        key = "".join(sorted(word))
+        d[key].append(word)
+    return d
 
 sys.excepthook = handle_exception
 
@@ -238,20 +255,23 @@ def is_global_command(line):
         "!coins",
         "!balance",
         "!honestly",
+        "!realtime",
         "!daily",
         "!song",
         "!uptime",
         "!fixit",
         "!quote",
+        "!latestquote",
         "!elo",
         "!leaderboard",
         "!shaq",
         "!combo",
         "!attempt",
+        "!dab",
+        "!rating",
     ]
     for c in global_commands:
         if line.startswith(c):
-            #print("Global command permitted")
             return True
     return False
 
@@ -479,6 +499,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             if None == self.config.get('run_data'):
                 self.config['run_data'] = {}
 
+            if None == self.config.get('last_ruby_sighting'):
+                self.config['last_ruby_sighting'] = 0
+
             if None == self.config.get('highest_combo'):
                 pair = []
                 pair.append(0)
@@ -493,6 +516,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         self.deaths = self.config['run_data'][self.config['current_run']]['deaths']
                     if None != self.config['run_data'][self.config['current_run']].get('closed_events'):
                         self.config['closed_events'] = self.config['run_data'][self.config['current_run']]['closed_events']
+
+            if None == self.config.get('welcome_messages'):
+                self.config['welcome_messages'] = {}
 
         self.bet_config = {}
         with open('bet_config.json', 'r') as config_file:
@@ -568,6 +594,11 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         self.ez_count = 0
         self.ez_start = time.time()
 
+        # Username present in list means welcome message has been displayed
+        self.welcome_message_displayed = []
+
+        self.ratings = {}
+
     def get_current_run_data(self, key):
         result = None
 
@@ -614,26 +645,19 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     for u in user_list:
                         more_coins = 1
-                        if u in self.coin_data['first_coin_times']:
-                            diff = datetime.datetime.now() - datetime.datetime.fromtimestamp(self.coin_data['first_coin_times'][u])
-                            if diff.days <= 7:
-                                more_coins = 2
-                        else:
-                            more_coins = 2
-
                         if u in self.coin_data['coins'].keys():
                             self.coin_data['coins'][u] += more_coins
                         else:
                             self.coin_data['coins'][u] = more_coins
                             timestamp = time.mktime(datetime.datetime.now().timetuple())
-                            self.coin_data['first_coin_times'][u] = timestamp
 
                     self.update_coin_data()
 
                 except Exception as e:
                     print("Coin loop exception: " + str(e))
 
-            time.sleep(60)
+            # Update coins every 10 minutes
+            time.sleep(60 * 10)
 
     def pcwe_loop(self):
         print("Starting PCWE loop")
@@ -763,13 +787,16 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                             if len(winners) == 0:
                                 payout = 0
+                            else:
+                                # Pot is evenly split between winners
+                                output += str(payout) + " coins are split between " + str(len(winners)) + " winners ("
+                                payout = int(payout / len(winners))
+                                output += str(payout) + " coins each)"
 
                             bet_info = self.bet_config['events'].get(event_name)
 
                             with self.coin_lock:
                                 for w in winners:
-                                    if bet_info:
-                                        output += w + '(' + str(int(payout)) + ') '
                                     self.coin_data['coins'][w] += payout
 
                                     if None == self.config['winners'].get(w):
@@ -900,9 +927,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         return group
 
     def output_msg(self, c, output, user, sleeptime=2):
-        chunk_size = 256 - 8
+        MAX_MESSAGE_SIZE = 512
+        chunk_size = MAX_MESSAGE_SIZE - 8
         if self.whisperMode:
-            chunk_size = 256 - 8 - 5 - len(user)
+            chunk_size = MAX_MESSAGE_SIZE - 8 - 5 - len(user)
         chunks = [ output[i:i+chunk_size] for i in range(0, len(output), chunk_size) ]
         j = 1
         for ch in chunks:
@@ -931,6 +959,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!drfujihelp",
             "!uptime",
             "!bee",
+            "!permissions",
+            "!dab",
             "!sprite",
             "!shaq",
             "!fixit",
@@ -939,6 +969,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!raid",
             "!song",
             "!honestly",
+            "!realtime",
             "!gender",
             "!pokemon",
             "!offen",
@@ -984,6 +1015,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!coins",
             "!credit",
             "!riprun",
+            "!resetcoins",
             "!addcom",
             "!editcom",
             "!delcom",
@@ -991,6 +1023,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!shoutout",
             "!notify",
             "!quote",
+            "!latestquote",
             "!addquote",
             "!delquote",
             "!elo",
@@ -1004,6 +1037,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!attempt",
             "!swearjar",
             "!define",
+            "!hiddenpower",
+            "!rating",
         ]
         for c in cmds:
             if cmd.startswith(c):
@@ -1029,6 +1064,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!cancel",
             "!resolve",
             "!riprun",
+            "!resetcoins",
             "!setrun",
             "!addshoutout",
             "!removeshoutout",
@@ -1044,7 +1080,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!swearjar",
             "!define",
             "!credit",
-            "!so",
+            "!so ",
             "!shoutout",
         ]
         for c in cmds:
@@ -1100,7 +1136,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             c = None
             self.processCommand(line, c, source_user, source_id)
 
-    def handle_raid_or_meme(self, c, line):
+    def handle_raid_or_meme(self, c, line, source_user):
         if self.meme_mode:
             if "pokemonchallenges" == self.username.lower():
                 if self.last_line == line and line != "F" and line != "f":
@@ -1163,6 +1199,33 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.config['last_auto_shoutout'][user] = timestamp
                 self.update_config()
 
+    def get_sub_tier(self, user_id):
+        tier = 0
+        #channel_id = self.config.get('channel_id')
+        channel_id = 111971097
+        if None != channel_id:
+            CLIENT_ID = get_fuji_config_value('twitch_client_id')
+            twitch_api_oauth_token = get_fuji_config_value('twitch_api_oauth_token')
+            SUB_INFO_URL = 'https://api.twitch.tv/kraken/channels/' + str(channel_id) + '/subscriptions/' + str(user_id)
+            print(SUB_INFO_URL)
+            try:
+                request = urllib.request.Request(SUB_INFO_URL)
+                request.add_header('Accept', 'application/vnd.twitchtv.v5+json')
+                request.add_header('Client-ID', CLIENT_ID)
+                request.add_header('Authorization', 'OAuth ' + twitch_api_oauth_token)
+                response = urllib.request.urlopen(request)
+                data = json.loads(response.read().decode('utf-8'))
+                sub_plan = data.get('sub_plan')
+                if sub_plan:
+                    tier = int(sub_plan) / 1000
+                    print("Sub tier for user_id " + str(user_id) + " is " + str(tier))
+            except urllib.error.HTTPError as http_error:
+                msg = http_error.read()
+                print(msg)
+            except:
+                print("Unexpected error: " + str(sys.exc_info()[0]))
+        return tier
+
     def on_pubmsg(self, c, e):
         line = e.arguments[0]
 
@@ -1179,12 +1242,17 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         if len(self.last_lines) > 5:
             self.last_lines = self.last_lines[1:]
         self.last_lines.append((e.source.nick, line))
-        self.handle_raid_or_meme(c, line)
+        self.handle_raid_or_meme(c, line, e.source.nick)
 
         #self.handle_auto_shoutout(c, e.source.nick)
 
         is_mod = False
         is_sub = False
+        user_id = 0
+
+        for tag in e.tags:
+            if tag['key'] == 'user-id':
+                user_id = int(tag['value'])
 
         for tag in e.tags:
             if tag['key'] == 'bits':
@@ -1194,10 +1262,22 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 if tag['value']:
                     badges = tag['value'].split(',')
                     for b in badges:
-                        if b.split('/')[0] == 'moderator' or b.split('/')[0] == 'broadcaster':
+                        if b.split('/')[0] == 'moderator':
                             is_mod = True
+                        elif b.split('/')[0] == 'broadcaster':
+                            is_mod = True
+                            if None == self.config.get('channel_id'):
+                                self.config['channel_id'] = str(user_id)
+                                self.update_config()
                         elif b.split('/')[0] == 'subscriber':
                             is_sub = True
+
+        if line.startswith("!"):
+            pieces = line.split(" ")
+            line = pieces[0].lower()
+            if len(pieces) > 1:
+                line += " " + " ".join(pieces[1:])
+            print(line)
 
         if self.is_valid_command(line) or self.is_extra_command(line):
             if self.is_moderator_command(line):
@@ -1208,7 +1288,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.processCommand(line, c, e.source.nick)
             else:
                 if e.source.nick.lower() in self.permitted_users or \
-                   (is_sub and self.username.lower() == "pokemonchallenges") or \
+                   (is_sub and (self.username.lower() == "pokemonchallenges" or self.username.lower() == "moshjarcus")) or \
                    self.permissions is False or \
                    is_global_command(line) or \
                    self.is_extra_command(line):
@@ -1221,6 +1301,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         else:
                             self.output_msg(c, "Sorry, that command is only for mods, but you can whisper me!", e.source.nick)
 
+        # Handle any subscriber-specific actions
+        #is_sub = True
+        #if is_sub:
+        #    if e.source.nick not in self.welcome_message_displayed:
+        #        tier = self.get_sub_tier(user_id)
+        #        if tier >= 2:
+        #            # 'welcome_messages' is a dict of username: message
+        #            welcome_message = self.config['welcome_messages'][e.source.nick]
+        #            self.output_msg(c, welcome_message, e.source.nick)
+        #            self.welcome_message_displayed.append(e.source.nick)
+
+        if "rubyquartzvisor" in e.source.nick.lower():
+            now = datetime.datetime.now()
+            now_timestamp = time.mktime(now.timetuple())
+            last_ruby_sighting = self.config.get('last_ruby_sighting')
+            last_ruby_datetime = datetime.datetime.fromtimestamp(last_ruby_sighting)
+
+            diff = now - last_ruby_datetime
+            if diff.seconds >= 24 * 60 * 60:
+                self.output_msg(c, "OwO is that wuby? pokemoWo", e.source.nick)
+
+            self.config['last_ruby_sighting'] = now_timestamp
+            self.update_config()
+
     def handle_respects(self, c, line, source_user, discord):
         if self.ez:
             now = time.time()
@@ -1229,7 +1333,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.output_msg(c, str(num_respects) + " EZ 's for PC", source_user)
                 self.ez = False
             else:
-                if line.startswith("EZ ") or line == "EZ":
+                if line.startswith("EZ ") or line == "EZ" or line.startswith("pokemoEZ ") or line == "pokemoEZ":
                     self.ez_count += 1
 
         if len(self.current_deaths.keys()) > 0:
@@ -1302,13 +1406,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 return
 
         if line.startswith("!permissions") and len(line) >= len("!permissions ") + 2:
-            #toggle = line.split(" ")[1].rstrip("\n").rstrip("\r")
-            #if "on" in toggle:
-            #    self.permissions = True
-            #    self.output_msg(c, "Only permitted users can talk to me!", source_user)
-            #elif "off" in toggle:
-            #    self.permissions = False
-            #    self.output_msg(c, "Everyone can talk to me!", source_user)
+            toggle = line.split(" ")[1].rstrip("\n").rstrip("\r")
+            if "on" in toggle:
+                self.permissions = True
+                self.output_msg(c, "Only permitted users can talk to me!", source_user)
+            elif "off" in toggle:
+                self.permissions = False
+                self.output_msg(c, "Everyone can talk to me!", source_user)
             pass
 
         elif line.startswith("!commands") or line.startswith("!help") or line.startswith("!drfujihelp"):
@@ -1329,6 +1433,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.output_msg(c, pokemon.capitalize() + " sprite: http://everoddish.com/RedbYNv.png", source_user)
             else:
                 self.output_msg(c, "Format: !sprite <pokemon>", source_user)
+        elif line == "!dab":
+                self.output_msg(c, "/timeout " + source_user + " 1", source_user, 0)
+                self.output_msg(c, "No.", source_user, 0)
         elif line == "!bee":
             out = ""
             while len(out) < 12:
@@ -1378,6 +1485,19 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 output += killer
 
                 self.output_msg(c, output, source_user)
+
+        elif line.startswith("!realtime"):
+            if self.username.lower() == "pokemonchallenges":
+                if len(line.split(" ")) >= 3:
+                    subject = line.split(" ")[1].rstrip("\n").rstrip("\r")
+                    name = line.split(" ")[2].rstrip("\n").rstrip("\r")
+
+                    output = "When I met Realtime at Disneyland, he kept talking about "
+                    output += subject
+                    output += ". I started to laugh, but then he got really mad. I apologized, and then he called me a "
+                    output += name
+
+                    self.output_msg(c, output, source_user)
 
         elif line.startswith("!whisper"):
             output = "Only the following users have DrFujiBot permission: "
@@ -1547,7 +1667,11 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 else:
                     output = ""
 
-                output += name.replace("-", " ").title() + ": [" + m.type.capitalize() + "] "
+                output += name.replace("-", " ").title() + ": "
+                if type(m.type) is dict:
+                    output += "[" + m.type['name'].capitalize() + "] "
+                else:
+                    output += "[" + m.type.capitalize() + "] "
                 output += "BasePower(" + str(m.power) + ") Class(" + m.damage_class.capitalize() + ") "
                 output += "Accuracy(" + str(m.accuracy) + ") PP(" + str(m.pp) + ") "
 
@@ -2518,6 +2642,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         if None != self.config['run_data'].get(self.config['current_run']):
                             self.config['run_data'][self.config['current_run']]['deaths'] = deaths
 
+                    if 0 == deaths:
+                        self.fallen = {}
+                        self.fallen_timestamps = {}
+                        self.config['fallen'] = []
+                        self.config['fallen_timestamps'] = []
+
                     self.update_config()
 
                     self.output_msg(c, "Set death counter to " + str(self.deaths), source_user)
@@ -2544,6 +2674,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     output = "Death counter: " + str(self.deaths) + " riPepperonis "
                     output += "Press F to pay respects to '" + pokemon + "'"
                     self.output_msg(c, output, source_user)
+
+                    # Auto-marker
+                    self.output_msg(c, '/marker Death of "' + pokemon + '"', source_user)
 
                     self.current_deaths[pokemon] = time.time()
                     self.deaths_dict[pokemon] = []
@@ -2668,27 +2801,32 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.output_msg(c, "Could not find '" + name + "'", source_user)
 
         elif line.startswith("!anagram"):
-            word = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
+            #word = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
 
-            if len(word) <= 10:
-                a = Anagram(word)
+            #if len(word) <= 10:
+            #    #a = Anagram(word)
 
-                anagram_list = a.get_anagrams()
-                random.shuffle(anagram_list)
+            #    #anagram_list = a.get_anagrams()
+            #    #anagram_list = []
+            #    #anagram_data = get_anagrams()
+            #    #for key, anagrams in anagram_data.items():
+            #    #    if len(anagrams) > 1:
+            #    #        anagram_list.extend(anagrams)
 
-                output = "Anagrams: "
-                if len(anagram_list) > 1:
-                    output += ", ".join(anagram_list)
-                else:
-                    output += "(none)"
+            #    #output = "Anagrams: "
+            #    #if len(anagram_list) > 1:
+            #    #    output += ", ".join(anagram_list)
+            #    #else:
+            #    #    output += "(none)"
 
-                if len(output) > 240:
-                    output = output[:240]
-                    output = output.rsplit(", ", 1 )[0]
-            else:
-                output = "Word too long, max 10 characters"
+            #    #if len(output) > 240:
+            #    #    output = output[:240]
+            #    #    output = output.rsplit(", ", 1 )[0]
+            #else:
+            #    output = "Word too long, max 10 characters"
 
-            self.output_msg(c, output, source_user)
+            #self.output_msg(c, output, source_user)
+            self.output_msg(c, "The !anagram command is currently not working. Use this instead: https://ingesanagram.appspot.com/", source_user)
 
         elif line.startswith("!event"):
             self.new_bet(c, line, source_user)
@@ -2806,18 +2944,20 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 if diff.days >= 1:
                     more_coins = random.randint(0, 100)
 
-                    crit = random.randint(1, 16)
+                    crit = 0
+                    if more_coins >= 50:
+                        crit = random.randint(1, 16)
 
                     if 1 == crit and 0 != more_coins:
                         more_coins *= 2
 
-                    output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins!"
+                    output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins! "
 
                     if 1 == crit and 0 != more_coins:
-                        output += " A critical hit!"
+                        output += "A critical hit! "
 
                     if 0 == more_coins:
-                        output += " It missed!"
+                        output += "It missed! "
 
                     timestamp = time.mktime(now.timetuple())
                     self.coin_data['last_daily_bonus'][source_user] = timestamp
@@ -2829,6 +2969,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             self.coin_data['coins'][source_user] = 0
                         self.coin_data['coins'][source_user] += more_coins
                         self.update_coin_data()
+                        output += " You now have " + str(int(self.coin_data['coins'][source_user])) + " coins."
                 else:
                     diff2 = datetime.timedelta(hours=24) - diff
                     output = "@" + source_user
@@ -2892,10 +3033,21 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.update_pcce()
                 self.output_msg(c, "Notification sent to PCCE users", source_user)
 
-        elif line.startswith("!leaderboard"):
-            if "pokemonchallenges" == self.username.lower():
+        elif line.startswith("!resetcoins"):
+            if "pokemonchallenges" == self.username.lower() or "pokemodrealtime" == source_user.lower() or "moshjarcus" == source_user.lower():
+                with self.coin_lock:
+                    current_date = datetime.date.today().strftime("%Y-%m-%d")
+                    shutil.copyfile("PokemonChallenges_coins.json", "PokemonChallenges_coins_" + current_date + ".json")
+                    self.coin_data['coins'] = {}
+                    self.coin_data['last_daily_bonus'] = {}
+                    self.update_coin_data()
 
-                with open('PokemonChallenges_coins.json', 'r') as coin_file:
+                    self.output_msg(c, "Backup created (compressed with Middle-Out) - ALL COINS HAVE BEEN RESET!", source_user)
+
+        elif line.startswith("!leaderboard"):
+            if "pokemonchallenges" == self.username.lower() or "moshjarcus" == self.username.lower():
+
+                with open(self.username + '_coins.json', 'r') as coin_file:
                     coin_info = json.load(coin_file)
                     coins = coin_info.get('coins')
                     if None != coins:
@@ -2959,8 +3111,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                 output1 = "You're earning coins while sitting in chat! Make sure to use the !daily command every 24 hours to get a daily coin reward! "
                 output2 = "You can check your savings at any time by using the !balance command. "
-                output3 = "A mod will start a betting event in chat, and you can joing by typing !bet <event> <outcome> <coins> after the event has started! "
-                output4 = "For example: '!bet nature modest 100' For a full list of betting commands and what they do, click here: https://goo.gl/i8slEk"
+                output3 = "A mod will start a betting event in chat, and you can joing by typing !bet <outcome> after the event has started! "
+                output4 = "For example: '!bet 1' to bet 1 death in a gym battle. For a full list of betting commands and what they do, click here: https://goo.gl/i8slEk"
                 output5 = get_coin_balances(source_user)
 
                 self.output_msg(c, output1, source_user)
@@ -2974,7 +3126,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.output_msg(c, output5, source_user)
             else:
                 output = "You're currently earning coins and can use them to bet on what might happen during the stream! "
-                output += "Use !balance to see your current savings!"
+                output += "Whisper !balance to DrFujiBot to see your current savings!"
                 self.output_msg(c, output, source_user)
 
         elif line.startswith("!addcom"):
@@ -3096,7 +3248,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         diff = now - live_datetime
 
                         output = "Uptime: "
-                        output += str(diff.seconds//3600) + " hours and "
+                        output += str((diff.seconds//3600)) + " hours and "
                         output += str((diff.seconds//60)%60) + " minutes"
                     else:
                         output = "This channel is offline"
@@ -3192,6 +3344,47 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                         # Update last output time
                         self.extra_command_cooldown["!quote"] = current_time
+                else:
+                    self.output_msg(c, "No quotes available", source_user)
+
+        elif line.startswith("!latestquote"):
+            if True == self.config['extra_commands_on']:
+                if len(self.config['quotes'].keys()) > 0:
+                    # Cooldown
+                    last_output = self.extra_command_cooldown.get("!latestquote")
+
+                    should_output = False
+                    current_time = datetime.datetime.now()
+
+                    if None == last_output:
+                        should_output = True
+                    else:
+                        diff = current_time - last_output
+                        if diff.seconds >= 10:
+                            should_output = True
+
+                    if should_output:
+                        quote = ""
+
+                        key_list = list(self.config['quotes'].keys())
+                        # Convert from strings to integers
+                        key_list = list(map(int, key_list))
+                        key_list.sort()
+                        key = key_list[-1]
+                        key = str(key)
+
+                        if self.config['quotes'].get(key):
+                            quote = 'Quote #' + key + ' "'
+                            quote += self.config['quotes'][key]
+                            quote += '" -' + self.username
+                        else:
+                            self.output_msg(c, "Quote #" + key + " not found", source_user)
+
+                        if len(quote) > 0:
+                            self.output_msg(c, quote, source_user)
+
+                        # Update last output time
+                        self.extra_command_cooldown["!latestquote"] = current_time
                 else:
                     self.output_msg(c, "No quotes available", source_user)
 
@@ -3452,6 +3645,71 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     success = True
                 except:
                     pass
+
+        elif line.startswith("!hiddenpower"):
+            print_usage = True
+            tokens = line.split(" ")
+            if len(tokens) == 7:
+                try:
+                    unused, value_a, value_b, value_c, value_e, value_f, value_d = [i for i in tokens]
+
+                    value_u = 1 if int(value_a) % 4 == 2 or int(value_a) % 4 == 3 else 0
+                    value_v = 1 if int(value_b) % 4 == 2 or int(value_b) % 4 == 3 else 0
+                    value_w = 1 if int(value_c) % 4 == 2 or int(value_c) % 4 == 3 else 0
+                    value_x = 1 if int(value_d) % 4 == 2 or int(value_d) % 4 == 3 else 0
+                    value_y = 1 if int(value_e) % 4 == 2 or int(value_e) % 4 == 3 else 0
+                    value_z = 1 if int(value_f) % 4 == 2 or int(value_f) % 4 == 3 else 0
+
+                    value_a = int(value_a) % 2
+                    value_b = int(value_b) % 2
+                    value_c = int(value_c) % 2
+                    value_d = int(value_d) % 2
+                    value_e = int(value_e) % 2
+                    value_f = int(value_f) % 2
+
+                    hidden_power_types = ["Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost", "Steel", "Fire", "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark"]
+                    hidden_power_type_index = int( math.floor( ( ( value_a + (2 * value_b) + (4 * value_c) + (8 * value_d) + (16 * value_e) + (32 * value_f) ) * 15 ) / 63 ) )
+                    hidden_power_base_power = int( math.floor( ( ( ( value_u + (2 * value_v) + (4 * value_w) + (8 * value_x) + (16 * value_y) + (32 * value_z) ) * 40 ) / 63 ) + 30 ) )
+                    self.output_msg(c, "The Pokemon's Hidden Power type is " + hidden_power_types[ hidden_power_type_index ] + ". In Generations 3 to 5, its Base Power is " + str(hidden_power_base_power) + ".", source_user)
+                    print_usage = False
+                except:
+                    pass
+            if print_usage:
+                self.output_msg(c, "Format: !hiddenpower <HP IV> <Atk IV> <Def IV> <Sp. Atk IV> <Sp. Def IV> <Speed IV>", source_user)
+
+        elif line.startswith("!rating"):
+            #if len(self.ratings.keys()) == 0:
+            if True:
+                try:
+                    SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gTbX1k6rLSf65i9Yv_Ddq2mRLcSFDevNK7AkThD1TBA/gviz/tq?tqx=out:csv&sheet=Tabellenblatt1"
+                    response = urllib.request.urlopen(SPREADSHEET_URL).read().decode('UTF-8')
+                    skipped_first = False
+                    for data_line in response.split("\n"):
+                        if False == skipped_first:
+                            skipped_first = True
+                            continue
+                        values = data_line.split(",")
+                        pokemon_name = values[0].replace("\"", "").lower()
+                        if len(values[1].replace("\"", "")) == 0:
+                            pokemon_rating = 0
+                        else:
+                            pokemon_rating = int(values[1].replace("\"", ""))
+                        self.ratings[pokemon_name] = pokemon_rating
+                    #self.output_msg(c, "Retrieved " + str(len(self.ratings.keys())) + " ratings", source_user)
+                except:
+                    self.output_msg(c, "There was a problem retrieving data from the spreadsheet. @pokemodrealtime", source_user)
+
+            if len(line.split(" ")) >= 2:
+                name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                name = fix_pokemon_name(name)
+            else:
+                name = random.choice(list(self.ratings.keys()))
+
+            rating = self.ratings.get(name.lower())
+            if rating:
+                self.output_msg(c, "PC's rating for '" + name + "' is: " + str(rating), source_user)
+            else:
+                self.output_msg(c, "Could not find rating for Pokemon '" + name + "'", source_user)
 
         # NEW COMMANDS GO HERE ^^^
 
