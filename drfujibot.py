@@ -31,7 +31,7 @@ import shutil
 from bs4 import BeautifulSoup
 from datetime import timedelta
 from whoosh.spelling import ListCorrector
-from anagram import Anagram
+from anagram.anagram import Anagram
 import wikipedia
 from collections import defaultdict
 

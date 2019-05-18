@@ -9,3 +9,29 @@ To view the re-write of this bot (which is a work in progress), look up MrFujiBo
 Despite plans for a re-write, OpenFuji is still in use by dozens of Twitch streamers, and continues to be maintained and improved. The OpenFuji instances running under the DrFujiBot Twitch account are hosted by everoddish.com
 
 Several specific configuration values are missing from this repository (such as API keys, etc.) so that the DrFujiBot Twitch account remains protected. If you supply your own values for your own Twitch account, you may run the bot locally on your machine.
+
+## Developing
+
+1. Install dependencies
+
+```
+pip install -r requirements.txt
+```
+
+2. Create a streamer config (use SampleStreamer.json as a template)
+
+3. Create the necessary meta files (these can be empty, but .json files must be valid JSON)
+- PCCE.json
+- bee.txt
+- shaq.txt
+- whisper_users.json
+
+4. Fill in `DrFujiBot_config.json` with you bot user's info
+
+5. Run the bot
+
+```
+bash drfujibot_launcher.sh my_config.json
+```
+
+
