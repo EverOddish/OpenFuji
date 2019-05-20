@@ -31,7 +31,7 @@ import shutil
 from bs4 import BeautifulSoup
 from datetime import timedelta
 from whoosh.spelling import ListCorrector
-from anagram.anagram import Anagram
+from anagram import Anagram
 import wikipedia
 from collections import defaultdict
 
@@ -3678,8 +3678,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.output_msg(c, "Format: !hiddenpower <HP IV> <Atk IV> <Def IV> <Sp. Atk IV> <Sp. Def IV> <Speed IV>", source_user)
 
         elif line.startswith("!rating"):
-            #if len(self.ratings.keys()) == 0:
-            if True:
+            if len(self.ratings.keys()) == 0:
                 try:
                     SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gTbX1k6rLSf65i9Yv_Ddq2mRLcSFDevNK7AkThD1TBA/gviz/tq?tqx=out:csv&sheet=Tabellenblatt1"
                     response = urllib.request.urlopen(SPREADSHEET_URL).read().decode('UTF-8')
@@ -3689,13 +3688,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             skipped_first = True
                             continue
                         values = data_line.split(",")
-                        pokemon_name = values[0].replace("\"", "").lower()
-                        if len(values[1].replace("\"", "")) == 0:
+                        pokemon_name = values[1].replace("\"", "").lower()
+                        if len(values[2].replace("\"", "")) == 0:
                             pokemon_rating = 0
                         else:
-                            pokemon_rating = int(values[1].replace("\"", ""))
+                            pokemon_rating = int(values[2].replace("\"", ""))
                         self.ratings[pokemon_name] = pokemon_rating
-                    #self.output_msg(c, "Retrieved " + str(len(self.ratings.keys())) + " ratings", source_user)
                 except:
                     self.output_msg(c, "There was a problem retrieving data from the spreadsheet. @pokemodrealtime", source_user)
 
