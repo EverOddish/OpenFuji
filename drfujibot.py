@@ -2960,78 +2960,57 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     last = now - datetime.timedelta(hours=25)
 
                 output = ""
+                daily_available = false
 
                 timetoreset = datetime.timedelta(hours=self.daily_time) - datetime.timedelta(hours=last.hour, minutes=last.minute)
                 if timetoreset < 0:
                     timetoreset = datetime.timedelta(hours=24) + timetoreset
-                #if diff.days >= 1:
+                #if the daily mode is based on hours passed:
                 if self.daily_type == "hours":
                     if (diff.seconds/3600) >= self.daily_hours: 
-                        more_coins = random.randint(0, 100)
-
-                        crit = random.randint(1, 16)
-
-                        if 1 == crit and 0 != more_coins:
-                            more_coins *= 2
-
-                        output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins!"
-
-                        if 1 == crit and 0 != more_coins:
-                            output += " A critical hit!"
-
-                        if 0 == more_coins:
-                            output += " It missed!"
-
-                        timestamp = time.mktime(now.timetuple())
-                        self.coin_data['last_daily_bonus'][source_user] = timestamp
-                        self.update_config()
-
-                        with self.coin_lock:
-                            if None == self.coin_data['coins'].get(source_user):
-                                # If it's a new user and the coin loop hasn't run yet
-                                self.coin_data['coins'][source_user] = 0
-                            self.coin_data['coins'][source_user] += more_coins
-                            self.update_coin_data()
+                        daily_available = true
                     else:
                         diff2 = datetime.timedelta(hours=self.daily_hours) - diff
-                        output = "@" + source_user
-                        output += " You can receive another daily bonus in "
-                        output += str(diff2.seconds//3600) + " hours and "
-                        output += str((diff2.seconds//60)%60) + " minutes"
-                # Now put in an elif to find when the reset time is.
+                #or if the daily mode is based on a certain time:
                 elif self.daily_type == "time":
                     if (diff.seconds/3600) >= timetoreset:
-                        more_coins = random.randint(0, 100)
-
-                        crit = random.randint(1, 16)
-
-                        if 1 == crit and 0 != more_coins:
-                            more_coins *= 2
-
-                        output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins!"
-
-                        if 1 == crit and 0 != more_coins:
-                            output += " A critical hit!"
-
-                        if 0 == more_coins:
-                            output += " It missed!"
-
-                        timestamp = time.mktime(now.timetuple())
-                        self.coin_data['last_daily_bonus'][source_user] = timestamp
-                        self.update_config()
-
-                        with self.coin_lock:
-                            if None == self.coin_data['coins'].get(source_user):
-                                # If it's a new user and the coin loop hasn't run yet
-                                self.coin_data['coins'][source_user] = 0
-                            self.coin_data['coins'][source_user] += more_coins
-                            self.update_coin_data()
+                        daily_available = true
                     else:
                         diff2 = diff - timetoreset
-                        output = "@" + source_user
-                        output += " You can receive another daily bonus in "
-                        output += str(diff2.seconds//3600) + " hours and "
-                        output += str((diff2.seconds//60)%60) + " minutes"
+                #give the coins
+                if daily_available == true:
+                    more_coins = random.randint(0, 100)
+
+                    crit = random.randint(1, 16)
+
+                    if 1 == crit and 0 != more_coins:
+                        more_coins *= 2
+
+                    output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins!"
+
+                    if 1 == crit and 0 != more_coins:
+                        output += " A critical hit!"
+
+                    if 0 == more_coins:
+                        output += " It missed!"
+
+                    timestamp = time.mktime(now.timetuple())
+                    self.coin_data['last_daily_bonus'][source_user] = timestamp
+                    self.update_config()
+
+                    with self.coin_lock:
+                        if None == self.coin_data['coins'].get(source_user):
+                            # If it's a new user and the coin loop hasn't run yet
+                            self.coin_data['coins'][source_user] = 0
+                        self.coin_data['coins'][source_user] += more_coins
+                        self.update_coin_data()
+                #tell user when they can get their coins. diff2 assigned if they cannot get their coins yet depending on daily type.
+                else:
+                    output = "@" + source_user
+                    output += " You can receive another daily bonus in "
+                    output += str(diff2.seconds//3600) + " hours and "
+                    output += str((diff2.seconds//60)%60) + " minutes"
+
                 self.output_msg(c, output, source_user)
 
         elif line.startswith("!riprun"):
