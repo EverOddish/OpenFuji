@@ -1,39 +1,40 @@
-import sys
-import math
-import socket
+import asyncio
+import copy
 import datetime
-import urllib
 import glob
-import random
-import threading
-import types
-import time
-import random
-import drfujibot_irc.bot
-import drfujibot_irc.strings
-import os
-import drfujibot_pykemon.exceptions
-import drfujibot_pykemon.request
-import drfujibot_pykemon.api
-import re
 import json
 import logging
-import discord
-import asyncio
+import math
 import multiprocessing
 import operator
-import iso8601
-import traceback
-import copy
-import requests
+import os
+import random
+import re
 import shutil
+import socket
+import sys
+import threading
+import time
+import traceback
+import types
+import urllib
+from collections import defaultdict
+from datetime import timedelta
+
+import discord
+import iso8601
+import requests
+import wikipedia
+from anagram import Anagram
 #import requests_cache
 from bs4 import BeautifulSoup
-from datetime import timedelta
 from whoosh.spelling import ListCorrector
-from anagram import Anagram
-import wikipedia
-from collections import defaultdict
+
+import drfujibot_irc.bot
+import drfujibot_irc.strings
+import drfujibot_pykemon.api
+import drfujibot_pykemon.exceptions
+import drfujibot_pykemon.request
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(stream=sys.stdout)
