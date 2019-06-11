@@ -1,25 +1,30 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """ pykemon.request
 
 This is the request factory for pykemon
 All API calls made to the PokeAPI website go from here.
 """
-
-BASE_URI = 'https://everoddish.com:443/api/v2'
-
-CHOICES = ['pokedex', 'pokedex_id', 'pokemon', 'pokemon_id', 'move', 'move_id',
-           'ability', 'ability_id', 'type', 'type_id', 'egg',
-           'egg_id', 'description', 'description_id', 'sprite',
-           'sprite_id', 'game', 'game_id', 'nature', 'item', 'location', 'area', 'area_id', 'encounters', 'species', 'evo_chain', 'characteristic', 'url']
-
 import requests
 import requests_cache
 import simplejson
 from simplejson import JSONDecodeError
-from drfujibot_pykemon.models import Pokemon, Move, Type, Ability, Egg, Description, Sprite, Game, Nature, Item, Location, LocationArea, LocationAreaEncounters, PokemonSpecies, EvolutionChain, Characteristic
+
 from drfujibot_pykemon.exceptions import ResourceNotFoundError
+from drfujibot_pykemon.models import (
+    Ability, Characteristic, Description, Egg, EvolutionChain, Game, Item,
+    Location, LocationArea, LocationAreaEncounters, Move, Nature, Pokemon,
+    PokemonSpecies, Sprite, Type)
+
+BASE_URI = 'https://pokeapi.co/api/v2'
+
+CHOICES = [
+    'pokedex', 'pokedex_id', 'pokemon', 'pokemon_id', 'move', 'move_id',
+    'ability', 'ability_id', 'type', 'type_id', 'egg', 'egg_id', 'description',
+    'description_id', 'sprite', 'sprite_id', 'game', 'game_id', 'nature',
+    'item', 'location', 'area', 'area_id', 'encounters', 'species',
+    'evo_chain', 'characteristic', 'url'
+]
 
 CLASSES = {
     'pokemon': Pokemon,
@@ -48,21 +53,10 @@ def _request(uri, url):
 
     one_year = 60 * 60 * 24 * 30 * 12
 
-    cache_name = 'pokeapi_cache_3' 
+    cache_name = 'pokeapi_cache_3'
 
-    if None != url and len(url) > 0:
-        port_str = url.split(':')[2]
-        port_str = port_str.split('/')[0]
-        port = int(port_str)
-    else:
-        port = 8000
-
-    if port != 8000:
-        cache_name = 'pokeapi_cache_3_' + str(port)
-    else:
-        cache_name = 'pokeapi_cache_3' 
-
-    requests_cache.install_cache(cache_name, backend='sqlite', expire_after=one_year)
+    requests_cache.install_cache(
+        cache_name, backend='sqlite', expire_after=one_year)
 
     r = requests.get(uri)
 
@@ -102,13 +96,15 @@ def _compose(choice, url):
         nchoice_copy = nchoice
     return ('/'.join([url, nchoice_copy, str(id), '']), nchoice)
 
+
 def _compose_encounters(choice, url):
     """
     Figure out exactly what resource we're requesting and return the correct
     class.
     """
-    pokemon_id=list(choice.values())[0]
+    pokemon_id = list(choice.values())[0]
     return ('/'.join([url, 'pokemon', pokemon_id, 'encounters']), 'encounters')
+
 
 def make_request(choice):
     """
@@ -117,7 +113,7 @@ def make_request(choice):
     and return the correct constructed object
     """
     url = choice.get('url')
-    if None == url:
+    if not url:
         url = BASE_URI
     else:
         if len(url) == 0:
