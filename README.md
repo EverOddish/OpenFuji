@@ -12,6 +12,13 @@ Several specific configuration values are missing from this repository (such as 
 
 ## Developing
 
+### Before starting:
+
+1. Make sure you are running on python >=3.5.2 but < python3.6  and you have sqlite3 installed
+2. If you want to test the bot in your own twitch chat, follow this guide: https://dev.twitch.tv/docs/authentication/#registration
+
+### Setting up the bot
+
 1. Install dependencies
 
 ```
@@ -25,8 +32,15 @@ pip install -r requirements.txt
 - bee.txt
 - shaq.txt
 - whisper_users.json
+- DrFujiBot_config.json:
 
-4. Fill in `DrFujiBot_config.json` with you bot user's info
+
+4. Fill in `DrFujiBot_config.json` with you bot user's info:
+   - "twitch_oauth_token": "" // oauth token from twitch
+   - "twitch_username": ""
+   - "twitch_client_id": ""
+   - "lastfm_api_key": ""
+   - "discord_key": ""
 
 5. Run the bot
 
