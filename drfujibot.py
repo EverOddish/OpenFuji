@@ -2951,34 +2951,31 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         elif line.startswith("!daily"):
             if not self.whisperMode and self.username != 'everoddish':
                 now = datetime.datetime.now()
+                daily_available = False
                 if self.coin_data['last_daily_bonus'].get(source_user):
                     last = datetime.datetime.fromtimestamp(self.coin_data['last_daily_bonus'][source_user])
                 else:
-                    last = now - datetime.timedelta(hours=25)
-
-                if last < self.start_time:
-                    last = now - datetime.timedelta(hours=25)
+                    daily_available = True
 
                 output = ""
-                daily_available = false
+                timetoreset = None
 
-                timetoreset = datetime.timedelta(hours=self.daily_time) - datetime.timedelta(hours=last.hour, minutes=last.minute)
-                if timetoreset < 0:
-                    timetoreset = datetime.timedelta(hours=24) + timetoreset
-                #if the daily mode is based on hours passed:
-                if self.daily_type == "hours":
-                    if (diff.seconds/3600) >= self.daily_hours: 
-                        daily_available = true
-                    else:
-                        diff2 = datetime.timedelta(hours=self.daily_hours) - diff
-                #or if the daily mode is based on a certain time:
-                elif self.daily_type == "time":
-                    if (diff.seconds/3600) >= timetoreset:
-                        daily_available = true
-                    else:
-                        diff2 = diff - timetoreset
+                #if daily isn't already available, calculate
+                if daily_available == False:
+                    #if the daily mode is based on hours passed:
+                    if self.daily_type == "hours":
+                        #when last.hour > daily_hours, timetoreset.days will be negative
+                        timetoreset = datetime.timedelta(hours=self.daily_hours) - datetime.timedelta(hours=last.hour, minutes=last.minute)
+                        if timetoreset.days < 0:
+                            daily_available = True
+
+                    #or if the daily mode is based on a certain time:
+                    elif self.daily_type == "time":
+                        if now.date != last.date and now.hour >= self.daily_time:
+                            daily_available = True
+
                 #give the coins
-                if daily_available == true:
+                if daily_available == True:
                     more_coins = random.randint(0, 100)
 
                     crit = random.randint(1, 16)
@@ -3006,6 +3003,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         self.update_coin_data()
                 #tell user when they can get their coins. diff2 assigned if they cannot get their coins yet depending on daily type.
                 else:
+                    diff = now - last
+                    diff2 = datetime.timedelta(hours=24) - diff
                     output = "@" + source_user
                     output += " You can receive another daily bonus in "
                     output += str(diff2.seconds//3600) + " hours and "
@@ -3752,7 +3751,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         daily_hours = int(line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
                         self.config['daily_hours'] = daily_hours
                         self.config['daily_type'] = "hours"
+                        self.daily_hours = daily_hours
                         self.update_config()
+
+                        self.output_msg(c, "Daily now available every " + str(daily_hours) + " hours", source_user)
                     except:
                         self.output_msg(c, "Invalid hours amount", source_user)
                 # Usage: !setdaily time 12 -> reset the daily every day at noon
@@ -3764,7 +3766,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             self.output_msg(c, "Must input a number between 1-24", source_user)
                         self.config['daily_time'] = daily_time
                         self.config['daily_type'] = "time"
+                        self.daily_time = daily_time
                         self.update_config()
+
+                        self.output_msg(c, "Daily now available every day at " + str(daily_time) + ":00 UTC", source_user)
                     except:
                         self.output_msg(c, "Invalid time", source_user)
                 else:
