@@ -406,6 +406,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         self.last_line = ""
         self.same_counter = 0
 
+        self.daily_type = "hours"
+        self.daily_hours = 24
+        self.daily_time = 24
+
         configname = ""
         self.config = None
         if bot_type and bot_type == 'discord':
@@ -461,6 +465,21 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 # event name, bet dict
                 for (k, v) in self.config['closed_events'].items():
                     self.closed_events[k] = v
+
+            if self.config.get('daily_type'):
+                self.daily_type = self.config.get('daily_type')
+            else:
+                self.daily_type = "hours"
+
+            if self.config.get('daily_hours'):
+                self.daily_hours = self.config.get('daily_hours')
+            else:
+                self.daily_hours = 24
+
+            if self.config.get('daily_time'):
+                self.daily_time = self.config.get('daily_time')
+            else:
+                self.daily_time = 24
 
             if None == self.config.get('extra_commands'):
                 self.config['extra_commands'] = {}
@@ -1039,6 +1058,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!define",
             "!hiddenpower",
             "!rating",
+            "!setdaily",
         ]
         for c in cmds:
             if cmd.startswith(c):
@@ -1082,6 +1102,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             "!credit",
             "!so ",
             "!shoutout",
+            "!setdaily",
         ]
         for c in cmds:
             if cmd.startswith(c):
@@ -2930,34 +2951,45 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         elif line.startswith("!daily"):
             if not self.whisperMode and self.username != 'everoddish':
                 now = datetime.datetime.now()
+                daily_available = False
                 if self.coin_data['last_daily_bonus'].get(source_user):
                     last = datetime.datetime.fromtimestamp(self.coin_data['last_daily_bonus'][source_user])
                 else:
-                    last = now - datetime.timedelta(hours=25)
-
-                if last < self.start_time:
-                    last = now - datetime.timedelta(hours=25)
+                    daily_available = True
 
                 output = ""
+                timetoreset = None
 
-                diff = now - last
-                if diff.days >= 1:
+                #if daily isn't already available, calculate
+                if daily_available == False:
+                    #if the daily mode is based on hours passed:
+                    if self.daily_type == "hours":
+                        #when last.hour > daily_hours, timetoreset.days will be negative
+                        timetoreset = datetime.timedelta(hours=self.daily_hours) - datetime.timedelta(hours=last.hour, minutes=last.minute)
+                        if timetoreset.days < 0:
+                            daily_available = True
+
+                    #or if the daily mode is based on a certain time:
+                    elif self.daily_type == "time":
+                        if now.date != last.date and now.hour >= self.daily_time:
+                            daily_available = True
+
+                #give the coins
+                if daily_available == True:
                     more_coins = random.randint(0, 100)
 
-                    crit = 0
-                    if more_coins >= 50:
-                        crit = random.randint(1, 16)
+                    crit = random.randint(1, 16)
 
                     if 1 == crit and 0 != more_coins:
                         more_coins *= 2
 
-                    output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins! "
+                    output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins!"
 
                     if 1 == crit and 0 != more_coins:
-                        output += "A critical hit! "
+                        output += " A critical hit!"
 
                     if 0 == more_coins:
-                        output += "It missed! "
+                        output += " It missed!"
 
                     timestamp = time.mktime(now.timetuple())
                     self.coin_data['last_daily_bonus'][source_user] = timestamp
@@ -2969,8 +3001,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             self.coin_data['coins'][source_user] = 0
                         self.coin_data['coins'][source_user] += more_coins
                         self.update_coin_data()
-                        output += " You now have " + str(int(self.coin_data['coins'][source_user])) + " coins."
+                #tell user when they can get their coins. diff2 assigned if they cannot get their coins yet depending on daily type.
                 else:
+                    diff = now - last
                     diff2 = datetime.timedelta(hours=24) - diff
                     output = "@" + source_user
                     output += " You can receive another daily bonus in "
@@ -3708,6 +3741,41 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.output_msg(c, "PC's rating for '" + name + "' is: " + str(rating), source_user)
             else:
                 self.output_msg(c, "Could not find rating for Pokemon '" + name + "'", source_user)
+
+        elif line.startswith("!setdaily"):
+            if len(line.split(" ")) >= 2:
+                dailytype = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                # Usage: !setdaily hours 12 -> reset the daily every 12 hours
+                if dailytype.startswith("hours"):
+                    try:
+                        daily_hours = int(line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
+                        self.config['daily_hours'] = daily_hours
+                        self.config['daily_type'] = "hours"
+                        self.daily_hours = daily_hours
+                        self.update_config()
+
+                        self.output_msg(c, "Daily now available every " + str(daily_hours) + " hours", source_user)
+                    except:
+                        self.output_msg(c, "Invalid hours amount", source_user)
+                # Usage: !setdaily time 12 -> reset the daily every day at noon
+                elif dailytype.startswith("time"):
+                    try:
+                        daily_time = int(line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
+                        if daily_time > 24:
+                            daily_time = 24
+                            self.output_msg(c, "Must input a number between 1-24", source_user)
+                        self.config['daily_time'] = daily_time
+                        self.config['daily_type'] = "time"
+                        self.daily_time = daily_time
+                        self.update_config()
+
+                        self.output_msg(c, "Daily now available every day at " + str(daily_time) + ":00 UTC", source_user)
+                    except:
+                        self.output_msg(c, "Invalid time", source_user)
+                else:
+                    self.output_msg(c, "Format: !setdaily <daily type>", source_user)
+            else:
+                self.output_msg(c, "Format: !setdaily <daily type>", source_user)
 
         # NEW COMMANDS GO HERE ^^^
 
