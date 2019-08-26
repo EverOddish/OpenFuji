@@ -1,51 +1,52 @@
-import sys
-import math
-import socket
+import asyncio
+import copy
 import datetime
-import urllib
-import glob
-import random
-import threading
-import types
-import time
-import random
-import drfujibot_irc.bot
-import drfujibot_irc.strings
-import os
-import drfujibot_pykemon.exceptions
-import drfujibot_pykemon.request
-import drfujibot_pykemon.api
-import re
 import json
 import logging
-import discord
-import asyncio
-import multiprocessing
+import math
 import operator
-import iso8601
-import traceback
-import copy
-import requests
+import os
+import random
+import re
 import shutil
-#import requests_cache
-from bs4 import BeautifulSoup
-from datetime import timedelta
-from whoosh.spelling import ListCorrector
-from anagram import Anagram
-import wikipedia
+import socket
+import sys
+import threading
+import time
+import traceback
+import types
+import urllib
 from collections import defaultdict
+from datetime import timedelta
+
+import discord
+import iso8601
+import requests
+# import requests_cache
+import wikipedia
+from bs4 import BeautifulSoup
+from whoosh.spelling import ListCorrector
+
+import drfujibot_irc.bot
+import drfujibot_irc.strings
+import drfujibot_pykemon.api
+import drfujibot_pykemon.exceptions
+import drfujibot_pykemon.request
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(stream=sys.stdout)
 logger.addHandler(handler)
+
 
 def handle_exception(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
 
-    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-    output = str(exc_type) + " " + str(exc_value) + " " + ''.join(traceback.format_tb(exc_traceback)) + "\n"
+    logger.error(
+        "Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+    output = str(exc_type) + " " + str(exc_value) + " " + ''.join(
+        traceback.format_tb(exc_traceback)) + "\n"
     output += '---------------------------------------------------------\n'
     with open('exceptions.log', 'a') as f:
         f.write(sys.argv[1] + "\n")
@@ -53,12 +54,15 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
     os._exit(1)
 
+
 def load_words(filename='/usr/share/dict/american-english'):
     with open(filename) as f:
         for word in f:
             yield word.rstrip()
 
+
 g_words = load_words()
+
 
 def get_anagrams(source=g_words):
     d = defaultdict(list)
@@ -67,11 +71,13 @@ def get_anagrams(source=g_words):
         d[key].append(word)
     return d
 
+
 sys.excepthook = handle_exception
 
 g_c = None
 g_whisperMode = False
 g_bot = None
+
 
 def fix_pokemon_name(name):
     if name.lower() == "pumpkaboo":
@@ -95,6 +101,7 @@ def fix_pokemon_name(name):
     elif name.lower() == "meloetta":
         name = "meloetta-aria"
     return name
+
 
 def fix_z_move(name):
     if "breakneck-blitz" == name.lower():
@@ -135,13 +142,14 @@ def fix_z_move(name):
         name = "twinkle-tackle--physical"
     return name
 
+
 def get_coin_balances(source_user):
     output = source_user + " : You have "
 
     with open('PokemonChallenges_coins.json', 'r') as coin_file:
         coin_info = json.load(coin_file)
         coins = coin_info.get('coins')
-        if None != coins:
+        if coins:
             if source_user in coins.keys():
                 output += str(int(coins[source_user]))
                 output += " coins"
@@ -149,6 +157,7 @@ def get_coin_balances(source_user):
                 "0 coins"
 
     return output
+
 
 def get_weaknesses(type1, type2):
     weaknesses = []
@@ -183,10 +192,12 @@ def get_weaknesses(type1, type2):
 
     except drfujibot_pykemon.exceptions.ResourceNotFoundError:
         print("Type(s) not found.")
-    except:
+
+    except Exception:
         print("Unexpected error: " + str(sys.exc_info()[0]))
 
     return weaknesses
+
 
 def get_resistances(type1, type2):
     resistances = []
@@ -221,10 +232,11 @@ def get_resistances(type1, type2):
 
     except drfujibot_pykemon.exceptions.ResourceNotFoundError:
         print("Type(s) not found.")
-    except:
+    except Exception:
         print("Unexpected error: " + str(sys.exc_info()[0]))
 
     return resistances
+
 
 def get_immunities(type1, type2):
     immunities = []
@@ -240,11 +252,12 @@ def get_immunities(type1, type2):
                 immunities.append(t.get('name'))
 
     except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-        self.output_msg(c, "Type(s) not found.", source_user)
-    except:
+        print("Type(s) not found.")
+    except Exception:
         print("Unexpected error: " + str(sys.exc_info()[0]))
 
     return immunities
+
 
 def is_global_command(line):
     global_commands = [
@@ -275,8 +288,10 @@ def is_global_command(line):
             return True
     return False
 
+
 def parse_time(time_str):
-    regex = re.compile(r'((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?')
+    regex = re.compile(
+        r'((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?')
     parts = regex.match(time_str)
     if not parts:
         return
@@ -287,9 +302,14 @@ def parse_time(time_str):
             time_params[name] = int(param)
     return timedelta(**time_params)
 
+
 def sort_by_coverage(mv):
     super_effective_types = []
-    types = ['normal', 'fire', 'fighting', 'water', 'flying', 'grass', 'poison', 'electric', 'ground', 'psychic', 'rock', 'ice', 'bug', 'dragon', 'ghost', 'dark', 'steel', 'fairy']
+    types = [
+        'normal', 'fire', 'fighting', 'water', 'flying', 'grass', 'poison',
+        'electric', 'ground', 'psychic', 'rock', 'ice', 'bug', 'dragon',
+        'ghost', 'dark', 'steel', 'fairy'
+    ]
     try:
         for t in types:
             t1 = drfujibot_pykemon.api.get(type=t)
@@ -298,11 +318,12 @@ def sort_by_coverage(mv):
                 super_effective_types.append(t)
 
     except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-        self.output_msg(c, "Type(s) not found.", source_user)
-    except:
+        print("Type(s) not found.")
+    except Exception:
         print("Unexpected error: " + str(sys.exc_info()[0]))
 
-    print(mv.name + " " + mv.type + " SE against " + str(super_effective_types))
+    print(mv.name + " " + mv.type + " SE against " +
+          str(super_effective_types))
     return len(super_effective_types)
 
 
@@ -313,9 +334,11 @@ def genNameToNum(name):
         gen = 1
     elif "gold-silver" in name or "crystal" in name:
         gen = 2
-    elif "ruby-sapphire" in name or "emerald" in name or "firered-leafgreen" in name:
+    elif "ruby-sapphire" in name or "emerald" in name \
+            or "firered-leafgreen" in name:
         gen = 3
-    elif "diamond-pearl" in name or "platinum" in name or "heartgold-soulsilver" in name:
+    elif "diamond-pearl" in name or "platinum" in name \
+            or "heartgold-soulsilver" in name:
         gen = 4
     elif "black-white" in name or "black-2-white-2" in name:
         gen = 5
@@ -326,18 +349,23 @@ def genNameToNum(name):
 
     return gen
 
+
 def getRegionForGame(game):
     region = ''
 
-    if 'red' == game or 'blue' == game or 'yellow' == game or 'leaf-green' == game or 'fire-red' == game:
+    if 'red' == game or 'blue' == game or 'yellow' == game \
+            or 'leaf-green' == game or 'fire-red' == game:
         region = 'kanto'
-    elif 'gold' == game or 'silver' == game or 'crystal' == game or 'heart-gold' == game or 'soul-silver' == game:
+    elif 'gold' == game or 'silver' == game or 'crystal' == game \
+            or 'heart-gold' == game or 'soul-silver' == game:
         region = 'johto'
-    elif 'ruby' == game or 'sapphire' == game or 'emerald' == game or 'omega-ruby' == game or 'alpha-sapphire' == game:
+    elif 'ruby' == game or 'sapphire' == game or 'emerald' == game \
+            or 'omega-ruby' == game or 'alpha-sapphire' == game:
         region = 'hoenn'
     elif 'diamond' == game or 'pearl' == game or 'platinum' == game:
         region = 'sinnoh'
-    elif 'black' == game or 'white' == game or 'black-2' == game or 'white-2' == game:
+    elif 'black' == game or 'white' == game or 'black-2' == game \
+            or 'white-2' == game:
         region = 'unova'
     elif 'x' == game or 'y' == game:
         region = 'kalos'
@@ -345,6 +373,7 @@ def getRegionForGame(game):
         region = 'alola'
 
     return region
+
 
 def find_chain(chain, name):
     if name == chain.get('species').get('name'):
@@ -355,6 +384,7 @@ def find_chain(chain, name):
             if result:
                 return result
 
+
 def get_fuji_config_value(key):
     result = None
     with open('DrFujiBot_config.json', 'r') as f:
@@ -362,8 +392,10 @@ def get_fuji_config_value(key):
         result = config.get(key)
     return result
 
+
 class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
-    def __init__(self, username, permitted_users, moderators, whisperMode, game, bot_type):
+    def __init__(self, username, permitted_users, moderators, whisperMode,
+                 game, bot_type):
         self.game = game
         self.bot_type = bot_type
         self.whisperMode = whisperMode
@@ -371,7 +403,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         twitch_oauth_token = get_fuji_config_value('twitch_oauth_token')
         twitch_username = get_fuji_config_value('twitch_username')
 
-        drfujibot_irc.bot.SingleServerIRCBot.__init__(self, [("irc.chat.twitch.tv" if True == self.whisperMode else "irc.twitch.tv", 6667, twitch_oauth_token)], twitch_username, twitch_username)
+        drfujibot_irc.bot.SingleServerIRCBot.__init__(
+            self,
+            [("irc.chat.twitch.tv" if self.whisperMode else "irc.twitch.tv",
+              6667, twitch_oauth_token)], twitch_username, twitch_username)
         self.channel = "#" + username.lower()
         self.username = username
         self.start_time = datetime.datetime.now()
@@ -454,7 +489,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 for (k, v) in self.config['open_events'].items():
                     self.open_events[k] = v
 
-            if None == self.config.get('open_event_rewards'):
+            if not self.config.get('open_event_rewards'):
                 self.config['open_event_rewards'] = {}
             if self.config.get('open_event_rewards'):
                 # event name, reward
@@ -481,62 +516,67 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             else:
                 self.daily_time = 24
 
-            if None == self.config.get('extra_commands'):
+            if not self.config.get('extra_commands'):
                 self.config['extra_commands'] = {}
 
-            if None == self.config.get('extra_commands_on'):
+            if not self.config.get('extra_commands_on'):
                 self.config['extra_commands_on'] = False
 
-            if None == self.config.get('winners'):
+            if not self.config.get('winners'):
                 self.config['winners'] = {}
 
-            if None != self.config.get('timed_messages'):
-                self.timed_message_thread = threading.Thread(target=self.timed_message_loop)
+            if self.config.get('timed_messages'):
+                self.timed_message_thread = threading.Thread(
+                    target=self.timed_message_loop)
                 self.timed_message_thread.start()
 
-            if None == self.config.get('pokeapi_url'):
+            if not self.config.get('pokeapi_url'):
                 self.config['pokeapi_url'] = ''
 
-            if None == self.config.get('auto_shoutout'):
-                self.config['auto_shoutout'] = [] 
+            if not self.config.get('auto_shoutout'):
+                self.config['auto_shoutout'] = []
 
-            if None == self.config.get('last_auto_shoutout'):
-                self.config['last_auto_shoutout'] =  {}
+            if not self.config.get('last_auto_shoutout'):
+                self.config['last_auto_shoutout'] = {}
 
-            if None == self.config.get('shoutout_messages'):
-                self.config['shoutout_message'] = [] 
+            if not self.config.get('shoutout_messages'):
+                self.config['shoutout_message'] = []
 
-            if None == self.config.get('command_whitelist'):
-                self.config['command_whitelist'] = [] 
+            if not self.config.get('command_whitelist'):
+                self.config['command_whitelist'] = []
 
-            if None == self.config.get('quotes'):
-                self.config['quotes'] = {} 
+            if not self.config.get('quotes'):
+                self.config['quotes'] = {}
             else:
                 if isinstance(self.config['quotes'], list):
-                    self.config['quotes'] = {} 
+                    self.config['quotes'] = {}
 
-            if None == self.config.get('run_data'):
+            if not self.config.get('run_data'):
                 self.config['run_data'] = {}
 
-            if None == self.config.get('last_ruby_sighting'):
+            if not self.config.get('last_ruby_sighting'):
                 self.config['last_ruby_sighting'] = 0
 
-            if None == self.config.get('highest_combo'):
+            if not self.config.get('highest_combo'):
                 pair = []
                 pair.append(0)
                 pair.append("")
                 self.config['highest_combo'] = (0, "")
 
-            if None == self.config.get('current_run'):
+            if not self.config.get('current_run'):
                 self.config['current_run'] = ""
             else:
-                if None != self.config['run_data'].get(self.config['current_run']):
-                    if None != self.config['run_data'][self.config['current_run']].get('deaths'):
-                        self.deaths = self.config['run_data'][self.config['current_run']]['deaths']
-                    if None != self.config['run_data'][self.config['current_run']].get('closed_events'):
-                        self.config['closed_events'] = self.config['run_data'][self.config['current_run']]['closed_events']
+                if self.config['run_data'].get(self.config['current_run']):
+                    if self.config['run_data'][self.config['current_run']].get(
+                            'deaths'):
+                        self.deaths = self.config['run_data'][
+                            self.config['current_run']]['deaths']
+                    if self.config['run_data'][self.config['current_run']].get(
+                            'closed_events'):
+                        self.config['closed_events'] = self.config['run_data'][
+                            self.config['current_run']]['closed_events']
 
-            if None == self.config.get('welcome_messages'):
+            if not self.config.get('welcome_messages'):
                 self.config['welcome_messages'] = {}
 
         self.bet_config = {}
@@ -549,21 +589,21 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             with open(coins_config_name, 'r') as config_file:
                 self.coin_data = json.load(config_file)
 
-                if None == self.coin_data.get('last_daily_bonus'):
+                if not self.coin_data.get('last_daily_bonus'):
                     self.coin_data['last_daily_bonus'] = {}
-        except:
+        except Exception:
             self.foundCoinFile = False
 
         if self.foundCoinFile:
             self.coin_lock = threading.Lock()
             startCoinThread = False
-            if False == self.whisperMode:
+            if not self.whisperMode:
                 if bot_type:
                     if bot_type != 'discord':
                         startCoinThread = True
                 else:
                     startCoinThread = True
-            if True == startCoinThread:
+            if startCoinThread:
                 self.coin_thread = threading.Thread(target=self.coin_loop)
                 self.coin_thread.start()
 
@@ -582,7 +622,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             self.permitted_users.append(u.lower())
 
         self.moderators = []
-        if None != moderators:
+        if moderators:
             for u in moderators:
                 self.moderators.append(u.lower())
 
@@ -607,7 +647,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         with open('PCCE.json', 'r') as config_file:
             self.pcce = json.load(config_file)
 
-        self.battle_room = "" 
+        self.battle_room = ""
 
         self.ez = False
         self.ez_count = 0
@@ -621,29 +661,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
     def get_current_run_data(self, key):
         result = None
 
-        if None != self.config['current_run'] and None != self.config['run_data']:
-            if None == self.config['run_data'].get(self.config['current_run']):
+        if self.config['current_run'] and self.config['run_data']:
+            if not self.config['run_data'].get(self.config['current_run']):
                 self.config['run_data'][self.config['current_run']] = {}
-            current_run_data = self.config['run_data'][self.config['current_run']]
-            if None != current_run_data.get(key):
+            current_run_data = self.config['run_data'][
+                self.config['current_run']]
+            if current_run_data.get(key):
                 result = current_run_data[key]
 
         return result
 
     def set_current_run_data(self, key, value):
-        if None != self.config['current_run'] and None != self.config['run_data']:
-            if None == self.config['run_data'].get(self.config['current_run']):
+        if self.config['current_run'] and self.config['run_data']:
+            if not self.config['run_data'].get(self.config['current_run']):
                 self.config['run_data'][self.config['current_run']] = {}
             self.config['run_data'][self.config['current_run']][key] = value
 
     def is_setrun_command(self, command):
         setrun_commands = [
-                "!howfar",
-                "!lastrun",
-                "!nickname",
-                "!rules",
-                ]
-        if None != self.config['current_run'] and None != self.config['run_data']:
+            "!howfar",
+            "!lastrun",
+            "!nickname",
+            "!rules",
+        ]
+        if self.config['current_run'] and self.config['run_data']:
             return command in setrun_commands
         else:
             return False
@@ -652,8 +693,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         while True:
             with self.coin_lock:
                 try:
-                    url = 'https://tmi.twitch.tv/group/user/' + self.username.lower() + '/chatters'
-                    response = urllib.request.urlopen(url).read().decode('UTF-8')
+                    url = ('https://tmi.twitch.tv/group/user/' +
+                           self.username.lower() + '/chatters')
+                    response = urllib.request.urlopen(url).read().decode(
+                        'UTF-8')
                     user_data = json.loads(response)
 
                     user_list = []
@@ -668,7 +711,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             self.coin_data['coins'][u] += more_coins
                         else:
                             self.coin_data['coins'][u] = more_coins
-                            timestamp = time.mktime(datetime.datetime.now().timetuple())
+                            # Does this work as it should? timestamp variable
+                            # is never used
+                            timestamp = time.mktime(
+                                datetime.datetime.now().timetuple())
 
                     self.update_coin_data()
 
@@ -680,7 +726,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
     def pcwe_loop(self):
         print("Starting PCWE loop")
-        path = os.path.join(os.sep, 'home', 'drfujibot', 'drfujibot', 'whispers')
+        path = os.path.join(os.sep, 'home', 'drfujibot', 'drfujibot',
+                            'whispers')
         while True:
             try:
                 for fn in os.listdir(path):
@@ -700,7 +747,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
     def timed_message_loop(self):
         message_list = self.config.get('timed_messages')
-        if None != message_list:
+        if message_list:
 
             # Message -> last output timestamp
             last_output = {}
@@ -722,14 +769,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     interval = list(m.values())[0]
 
                     last_timestamp = last_output.get(message)
-                    last_datetime = datetime.datetime.fromtimestamp(last_timestamp)
+                    last_datetime = datetime.datetime.fromtimestamp(
+                        last_timestamp)
                     output_message = False
 
                     diff = now - last_datetime
                     if diff.seconds >= interval:
                         output_message = True
 
-                    if True == output_message:
+                    if output_message:
                         last_output[message] = now_timestamp
                         self.output_msg(self.connection, message, 'drfujibot')
 
@@ -738,7 +786,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
     def do_shoutout_func(self, c, streamer, output_messages, source_user):
         output_messages_copy = output_messages[:]
         if len(output_messages_copy) == 0:
-            output_messages_copy.append("Go check out @" + streamer + " at twitch.tv/" + streamer + " They make great content and if you enjoy us, you will enjoy them as well!")
+            output_messages_copy.append(
+                ("Go check out @" + streamer + " at twitch.tv/" + streamer +
+                 " They make great content and if you enjoy us, " +
+                 "you will enjoy them as well!"))
         else:
             output_copy = []
             for m in output_messages_copy:
@@ -747,29 +798,35 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         for m in output_messages_copy:
             self.output_msg(c, m, source_user, 0)
 
-    def do_shoutout(self, c, streamer, output_messages, delay_seconds, source_user):
-        t = threading.Timer(delay_seconds, self.do_shoutout_func, [c, streamer, output_messages, source_user])
+    def do_shoutout(self, c, streamer, output_messages, delay_seconds,
+                    source_user):
+        t = threading.Timer(delay_seconds, self.do_shoutout_func,
+                            [c, streamer, output_messages, source_user])
         t.start()
 
     def resolve_bet(self, c, line, source_user):
         if self.foundCoinFile:
             if len(line.split(" ")) >= 3:
-                event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                event_name = line.split(" ")[1].rstrip("\n").rstrip(
+                    "\r").lower()
                 result = line.split(" ")[2].rstrip("\n").rstrip("\r").lower()
 
-                if None != self.bet_config['events'].get(event_name):
-                    if result in self.bet_config['events'][event_name]['outcomes'].keys():
+                if self.bet_config['events'].get(event_name):
+                    if result in self.bet_config['events'][event_name][
+                            'outcomes'].keys():
 
                         payout = self.open_event_rewards[event_name]
 
                         # If it wasn't closed before resolve, close it now
                         if event_name in self.open_events.keys():
-                            self.closed_events[event_name] = self.open_events[event_name]
+                            self.closed_events[event_name] = self.open_events[
+                                event_name]
                             del self.open_events[event_name]
                             del self.open_event_rewards[event_name]
 
                             self.config['open_events'] = self.open_events
-                            self.config['open_event_rewards'] = self.open_event_rewards
+                            self.config[
+                                'open_event_rewards'] = self.open_event_rewards
                             self.config['closed_events'] = self.closed_events
                             self.update_config()
 
@@ -784,23 +841,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 f.write(log_msg + "\n")
                                 f.flush()
 
-                            # closed_events -> event_name: {user -> wager, user -> wager, ...}
+                            # closed_events -> event_name:
+                            #   {user -> wager, user -> wager, ...}
                             for k in self.closed_events[event_name].keys():
                                 pot += self.closed_events[event_name][k][1]
                                 bet = self.closed_events[event_name][k][0]
-                                event_mappings = self.bet_config['events'].get(event_name)
+                                event_mappings = self.bet_config['events'].get(
+                                    event_name)
                                 result_mappings = None
-                                if None != event_mappings:
-                                    result_mappings = event_mappings['mappings'].get(result)
-                                if bet == result or ( None != result_mappings and bet in result_mappings ):
+                                if event_mappings:
+                                    result_mappings = event_mappings[
+                                        'mappings'].get(result)
+                                if bet == result or (result_mappings and
+                                                     bet in result_mappings):
                                     winners.append(k)
                                 all_users.append(k)
 
                             if len(winners) > 0:
                                 if self.bet_config['events'].get(event_name):
-                                    output = "'" + event_name + "' event winners get a payout! "
+                                    output = ("'" + event_name +
+                                              "' event winners get a payout! ")
                             else:
-                                output = "Unfortunately, there were no winners for the '" + event_name + "' event"
+                                output = (
+                                    "Unfortunately, there were no winners " +
+                                    "for the '" + event_name + "' event")
 
                             first_time_winners = []
 
@@ -808,17 +872,22 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 payout = 0
                             else:
                                 # Pot is evenly split between winners
-                                output += str(payout) + " coins are split between " + str(len(winners)) + " winners ("
+                                output += str(
+                                    payout
+                                ) + " coins are split between " + str(
+                                    len(winners)) + " winners ("
                                 payout = int(payout / len(winners))
                                 output += str(payout) + " coins each)"
 
-                            bet_info = self.bet_config['events'].get(event_name)
+                            # Unused variable, what does this do?
+                            bet_info = self.bet_config['events'].get(
+                                event_name)
 
                             with self.coin_lock:
                                 for w in winners:
                                     self.coin_data['coins'][w] += payout
 
-                                    if None == self.config['winners'].get(w):
+                                    if not self.config['winners'].get(w):
                                         self.coin_data['coins'][w] += 1000
                                         first_time_winners.append(w)
                                         self.config['winners'][w] = 1
@@ -830,7 +899,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             if len(first_time_winners) > 0:
                                 self.update_config()
 
-                                output = "First-time bet winners awarded a 1000 coin bonus: "
+                                output = "First-time bet winners awarded a "
+                                output += "1000 coin bonus: "
                                 output += ", ".join(first_time_winners)
 
                                 self.output_msg(c, output, source_user)
@@ -838,30 +908,42 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             del self.closed_events[event_name]
                             self.config['closed_events'] = self.closed_events
 
-                            if None != self.config['current_run'] and None != self.config['run_data']:
-                                if None != self.config['run_data'].get(self.config['current_run']):
-                                    self.config['run_data'][self.config['current_run']]['closed_events'] = {}
+                            if self.config['current_run'] and self.config[
+                                    'run_data']:
+                                if self.config['run_data'].get(
+                                        self.config['current_run']):
+                                    self.config['run_data'][self.config[
+                                        'current_run']]['closed_events'] = {}
 
                             self.update_config()
                         else:
-                            self.output_msg(c, "Could not find active event '" + event_name + "'", source_user)
+                            self.output_msg(
+                                c, "Could not find active event '" + event_name
+                                + "'", source_user)
                     else:
-                        self.output_msg(c, "Not a valid outcome: '" + result + "'", source_user)
+                        self.output_msg(
+                            c, "Not a valid outcome: '" + result + "'",
+                            source_user)
                 else:
-                    self.output_msg(c, "Could not find active event '" + event_name + "'", source_user)
+                    self.output_msg(
+                        c, "Could not find active event '" + event_name + "'",
+                        source_user)
             else:
-                self.output_msg(c, "Format: !resolve <event_name> <result>", source_user)
+                self.output_msg(c, "Format: !resolve <event_name> <result>",
+                                source_user)
         else:
             self.output_msg(c, "Betting has not been configured", source_user)
 
     def new_bet(self, c, line, source_user):
         if self.foundCoinFile:
             if len(line.split(" ")) == 3:
-                event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                event_name = line.split(" ")[1].rstrip("\n").rstrip(
+                    "\r").lower()
                 event_reward = 0
                 try:
-                    event_reward = int(line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
-                except:
+                    event_reward = int(
+                        line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
+                except Exception:
                     self.output_msg(c, "Invalid reward", source_user)
 
                 if event_reward > 0:
@@ -869,23 +951,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         if event_name not in self.closed_events.keys():
                             self.open_events[event_name] = {}
                             self.open_event_rewards[event_name] = event_reward
-                            output = "Betting has opened! Use '!bet <guess>' to play!"
+                            output = "Betting has opened!"
+                            output += " Use '!bet <guess>' to play!"
                             self.output_msg(c, output, source_user)
 
                             self.config['open_events'] = self.open_events
-                            self.config['open_event_rewards'] = self.open_event_rewards
+                            self.config[
+                                'open_event_rewards'] = self.open_event_rewards
                             self.update_config()
                         else:
-                            self.output_msg(c, "Existing event '" + event_name + "' must be resolved", source_user)
+                            self.output_msg(
+                                c, "Existing event '" + event_name +
+                                "' must be resolved", source_user)
                     else:
-                        self.output_msg(c, "There is an open event already in progress: " + list(self.open_events.keys())[0], source_user)
+                        self.output_msg(
+                            c, "There is an open event already in progress: " +
+                            list(self.open_events.keys())[0], source_user)
             else:
-                self.output_msg(c, "Format: !event <name> <reward>", source_user)
+                self.output_msg(c, "Format: !event <name> <reward>",
+                                source_user)
         else:
             self.output_msg(c, "Betting has not been configured", source_user)
 
     def get_game(self, username=None):
-        if self.game and self.whisperMode == False:
+        if self.game and not self.whisperMode:
             return self.game
         else:
             config = None
@@ -904,7 +993,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     user = username.lower()
                 game = config['games'].get(user)
 
-            if None == game:
+            if not game:
                 game = "alpha-sapphire"
             return game
 
@@ -950,7 +1039,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         chunk_size = MAX_MESSAGE_SIZE - 8
         if self.whisperMode:
             chunk_size = MAX_MESSAGE_SIZE - 8 - 5 - len(user)
-        chunks = [ output[i:i+chunk_size] for i in range(0, len(output), chunk_size) ]
+        chunks = [
+            output[i:i + chunk_size] for i in range(0, len(output), chunk_size)
+        ]
         j = 1
         for ch in chunks:
             if len(chunks) > 1:
@@ -960,7 +1051,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             else:
                 c.privmsg(self.channel, ch)
             print(ch)
-            if True == self.whisperMode:
+            if self.whisperMode:
                 logname = 'whisper.log'
             else:
                 logname = self.username + ".log"
@@ -1066,12 +1157,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         return False
 
     def is_extra_command(self, cmd):
-        if True == self.config['extra_commands_on']:
+        if self.config['extra_commands_on']:
             for c in self.config['extra_commands'].keys():
                 if cmd.lower().startswith(c):
                     return True
             run_cmd = self.get_current_run_data(cmd)
-            if None != run_cmd:
+            if run_cmd:
                 return True
         return False
 
@@ -1111,7 +1202,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
     def log_cmd(self, cmd, sourcenick):
         if self.is_valid_command(cmd):
-            if True == self.whisperMode:
+            if self.whisperMode:
                 if self.bot_type and self.bot_type == "discord":
                     logname = 'whisper_discord.log'
                 else:
@@ -1126,9 +1217,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         c.nick(c.get_nickname() + "_")
 
     def on_welcome(self, c, e):
+        # This variable is never used
         g_c = c
 
-        if True == self.whisperMode:
+        if self.whisperMode:
             c.cap('REQ', ':twitch.tv/commands')
             print("Ready for whisper mode")
         else:
@@ -1145,14 +1237,18 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         self.processCommand(line, c, e.source.nick)
 
         if e.source.nick.lower() not in self.previous_users:
-            self.output_msg(c, "I see this may be your first time using DrFujiBot! Feel free to check out the documentation: http://goo.gl/JGG3LT", e.source.nick)
+            output = "I see this may be your first time using DrFujiBot! "
+            output += "Feel free to check out the documentation: "
+            output += "http://goo.gl/JGG3LT"
+            self.output_msg(c, output, e.source.nick)
 
             self.previous_users[e.source.nick.lower()] = 1
             with open('whisper_users.json', 'w') as config_file:
                 config_file.write(json.dumps(self.previous_users))
 
     def on_discord_msg(self, line, source_user, source_id):
-        if source_user in self.permitted_users or self.permissions is False or is_global_command(line):
+        if source_user in self.permitted_users or not self.permissions \
+                or is_global_command(line):
             self.log_cmd(line, source_user)
             c = None
             self.processCommand(line, c, source_user, source_id)
@@ -1163,8 +1259,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 if self.last_line == line and line != "F" and line != "f":
                     self.same_counter += 1
                 else:
-                    if self.same_counter >= 5 and self.last_line != "F" and self.last_line != "f":
-                        self.output_msg(c, str(self.same_counter) + "x combo ( " + self.last_line + " )", "drfujibot")
+                    if self.same_counter >= 5 and self.last_line != "F" \
+                            and self.last_line != "f":
+                        self.output_msg(
+                            c,
+                            str(self.same_counter) + "x combo ( " +
+                            self.last_line + " )", "drfujibot")
                         if self.same_counter > self.config['highest_combo'][0]:
                             pair = []
                             pair.append(self.same_counter)
@@ -1195,55 +1295,66 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 for u in self.last_lines:
                     user_list.append(u)
             user_list = list(set(user_list))
-            # if more than 3 unique users are spamming the same thing, participate in the raid/meme!
+
+            # if more than 3 unique users are spamming the same thing.
+            # participate in the raid/meme!
             if len(user_list) >= 3:
-                if "f" != meme and "F" != meme and "pokemoF" != meme and "EZ" != meme:
-                    #self.output_msg(c, meme, "drfujibot")
+                if "f" != meme and "F" != meme and "pokemoF" != meme \
+                        and "EZ" != meme:
+                    # self.output_msg(c, meme, "drfujibot")
                     pass
 
     def handle_cheer(self, source_user, num_bits):
-        print("Handling cheer for " + str(num_bits) + " bits from " + source_user)
+        print("Handling cheer for " + str(num_bits) + " bits from " +
+              source_user)
 
     def handle_auto_shoutout(self, c, user):
         auto_shoutout_list = self.config.get('auto_shoutout')
-        if None != auto_shoutout_list and user in auto_shoutout_list:
+        if auto_shoutout_list and user in auto_shoutout_list:
             now = datetime.datetime.now()
             if self.config['last_auto_shoutout'].get(user):
-                last = datetime.datetime.fromtimestamp(self.config['last_auto_shoutout'][user])
+                last = datetime.datetime.fromtimestamp(
+                    self.config['last_auto_shoutout'][user])
             else:
                 last = now - datetime.timedelta(hours=25)
 
             diff = now - last
             if diff.days >= 1:
-                self.do_shoutout(c, user, self.config['shoutout_messages'], random.randint(5, 10), "drfujibot")
+                self.do_shoutout(c, user, self.config['shoutout_messages'],
+                                 random.randint(5, 10), "drfujibot")
                 timestamp = time.mktime(now.timetuple())
                 self.config['last_auto_shoutout'][user] = timestamp
                 self.update_config()
 
     def get_sub_tier(self, user_id):
         tier = 0
-        #channel_id = self.config.get('channel_id')
+        # channel_id = self.config.get('channel_id')
         channel_id = 111971097
-        if None != channel_id:
+        if channel_id:
             CLIENT_ID = get_fuji_config_value('twitch_client_id')
-            twitch_api_oauth_token = get_fuji_config_value('twitch_api_oauth_token')
-            SUB_INFO_URL = 'https://api.twitch.tv/kraken/channels/' + str(channel_id) + '/subscriptions/' + str(user_id)
+            twitch_api_oauth_token = get_fuji_config_value(
+                'twitch_api_oauth_token')
+            SUB_INFO_URL = 'https://api.twitch.tv/kraken/channels/' + str(
+                channel_id) + '/subscriptions/' + str(user_id)
             print(SUB_INFO_URL)
             try:
                 request = urllib.request.Request(SUB_INFO_URL)
-                request.add_header('Accept', 'application/vnd.twitchtv.v5+json')
+                request.add_header('Accept',
+                                   'application/vnd.twitchtv.v5+json')
                 request.add_header('Client-ID', CLIENT_ID)
-                request.add_header('Authorization', 'OAuth ' + twitch_api_oauth_token)
+                request.add_header('Authorization',
+                                   'OAuth ' + twitch_api_oauth_token)
                 response = urllib.request.urlopen(request)
                 data = json.loads(response.read().decode('utf-8'))
                 sub_plan = data.get('sub_plan')
                 if sub_plan:
                     tier = int(sub_plan) / 1000
-                    print("Sub tier for user_id " + str(user_id) + " is " + str(tier))
+                    print("Sub tier for user_id " + str(user_id) + " is " +
+                          str(tier))
             except urllib.error.HTTPError as http_error:
                 msg = http_error.read()
                 print(msg)
-            except:
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
         return tier
 
@@ -1251,9 +1362,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         line = e.arguments[0]
 
         if "TwitchPlaysShowdown" in self.username and \
-           ( "DrFujiBot won the battle" in line or \
-             "DrFujiBot lost the battle" in line ) and \
-             "drfujibot" in e.source.nick:
+            ("DrFujiBot won the battle" in line or
+                "DrFujiBot lost the battle" in line) and \
+                "drfujibot" in e.source.nick:
             print('match')
             self.output_msg(c, "!chatbattle", e.source.nick)
             return
@@ -1265,7 +1376,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         self.last_lines.append((e.source.nick, line))
         self.handle_raid_or_meme(c, line, e.source.nick)
 
-        #self.handle_auto_shoutout(c, e.source.nick)
+        # self.handle_auto_shoutout(c, e.source.nick)
 
         is_mod = False
         is_sub = False
@@ -1287,7 +1398,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             is_mod = True
                         elif b.split('/')[0] == 'broadcaster':
                             is_mod = True
-                            if None == self.config.get('channel_id'):
+                            if not self.config.get('channel_id'):
                                 self.config['channel_id'] = str(user_id)
                                 self.update_config()
                         elif b.split('/')[0] == 'subscriber':
@@ -1309,27 +1420,36 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.processCommand(line, c, e.source.nick)
             else:
                 if e.source.nick.lower() in self.permitted_users or \
-                   (is_sub and (self.username.lower() == "pokemonchallenges" or self.username.lower() == "moshjarcus")) or \
+                   (is_sub and (self.username.lower() == "pokemonchallenges"
+                    or self.username.lower() == "moshjarcus")) or \
                    self.permissions is False or \
                    is_global_command(line) or \
                    self.is_extra_command(line):
                     self.log_cmd(line, e.source.nick)
                     self.processCommand(line, c, e.source.nick)
                 else:
-                    if not ( line.startswith("!commands") or line.startswith("!so ") or line.startswith("!shoutout ") or line.startswith("!help") ):
+                    if not (line.startswith("!commands")
+                            or line.startswith("!so ")
+                            or line.startswith("!shoutout ")
+                            or line.startswith("!help")):
                         if self.username.lower() == "pokemonchallenges":
-                            self.output_msg(c, "Sorry, that command is only for mods or subs, but you can whisper me!", e.source.nick)
+                            output = "Sorry, that command is only for mods "
+                            output += " or subs, but you can whisper me!"
+                            self.output_msg(c, output, e.source.nick)
                         else:
-                            self.output_msg(c, "Sorry, that command is only for mods, but you can whisper me!", e.source.nick)
+                            output = "Sorry, that command is only for mods, "
+                            output += " but you can whisper me!"
+                            self.output_msg(c, output, e.source.nick)
 
         # Handle any subscriber-specific actions
-        #is_sub = True
-        #if is_sub:
+        # is_sub = True
+        # if is_sub:
         #    if e.source.nick not in self.welcome_message_displayed:
         #        tier = self.get_sub_tier(user_id)
         #        if tier >= 2:
         #            # 'welcome_messages' is a dict of username: message
-        #            welcome_message = self.config['welcome_messages'][e.source.nick]
+        #            welcome_message =
+        #                    self.config['welcome_messages'][e.source.nick]
         #            self.output_msg(c, welcome_message, e.source.nick)
         #            self.welcome_message_displayed.append(e.source.nick)
 
@@ -1337,7 +1457,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             now = datetime.datetime.now()
             now_timestamp = time.mktime(now.timetuple())
             last_ruby_sighting = self.config.get('last_ruby_sighting')
-            last_ruby_datetime = datetime.datetime.fromtimestamp(last_ruby_sighting)
+            last_ruby_datetime = datetime.datetime.fromtimestamp(
+                last_ruby_sighting)
 
             diff = now - last_ruby_datetime
             if diff.seconds >= 24 * 60 * 60:
@@ -1351,10 +1472,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             now = time.time()
             if now - self.ez_start >= 20:
                 num_respects = self.ez_count
-                self.output_msg(c, str(num_respects) + " EZ 's for PC", source_user)
+                self.output_msg(c,
+                                str(num_respects) + " EZ 's for PC",
+                                source_user)
                 self.ez = False
             else:
-                if line.startswith("EZ ") or line == "EZ" or line.startswith("pokemoEZ ") or line == "pokemoEZ":
+                if line.startswith("EZ ") or line == "EZ" or line.startswith(
+                        "pokemoEZ ") or line == "pokemoEZ":
                     self.ez_count += 1
 
         if len(self.current_deaths.keys()) > 0:
@@ -1369,7 +1493,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.fallen[name] = num_respects
                     self.fallen_timestamps[name] = now
 
-                    self.output_msg(c, str(num_respects) + " respects for " + name, source_user)
+                    self.output_msg(
+                        c,
+                        str(num_respects) + " respects for " + name,
+                        source_user)
 
                     self.config['fallen'] = self.fallen
                     self.config['fallen_timestamps'] = self.fallen_timestamps
@@ -1400,11 +1527,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
     def update_coin_data(self):
         with open(self.username + '_coins.json', 'w') as config_file:
             config_file.write(json.dumps(self.coin_data))
-        if "pokemonchallenges" == self.username.lower() or "pokemonrealtime" == self.username.lower():
+        if "pokemonchallenges" == self.username.lower(
+        ) or "pokemonrealtime" == self.username.lower():
             self.pcce['coins'] = self.coin_data['coins']
             self.update_pcce()
 
-    def processCommand(self, line, c, source_user, source_id=None, prefix=None):
+    def processCommand(self, line, c, source_user, source_id=None,
+                       prefix=None):
 
         if " " in line:
             line_start = ""
@@ -1426,41 +1555,49 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             if command not in self.config['command_whitelist']:
                 return
 
-        if line.startswith("!permissions") and len(line) >= len("!permissions ") + 2:
+        if line.startswith(
+                "!permissions") and len(line) >= len("!permissions ") + 2:
             toggle = line.split(" ")[1].rstrip("\n").rstrip("\r")
             if "on" in toggle:
                 self.permissions = True
-                self.output_msg(c, "Only permitted users can talk to me!", source_user)
+                self.output_msg(c, "Only permitted users can talk to me!",
+                                source_user)
             elif "off" in toggle:
                 self.permissions = False
                 self.output_msg(c, "Everyone can talk to me!", source_user)
             pass
 
-        elif line.startswith("!commands") or line.startswith("!help") or line.startswith("!drfujihelp"):
+        elif line.startswith("!commands") or line.startswith(
+                "!help") or line.startswith("!drfujihelp"):
             should_output = False
             if line.startswith("!commands"):
-                if True == self.config['extra_commands_on']:
+                if self.config['extra_commands_on']:
                     should_output = True
             else:
                 should_output = True
 
             if should_output:
-                output = "See the documentation for commands and help: http://goo.gl/JGG3LT"
+                output = "See the documentation for commands and help: "
+                output += "http://goo.gl/JGG3LT"
                 self.output_msg(c, output, source_user)
 
         elif line.startswith("!sprite "):
             if len(line.split(" ")) >= 2:
                 pokemon = line.split(" ")[1].rstrip("\n").rstrip("\r")
-                self.output_msg(c, pokemon.capitalize() + " sprite: http://everoddish.com/RedbYNv.png", source_user)
+                self.output_msg(
+                    c,
+                    pokemon.capitalize() +
+                    " sprite: http://everoddish.com/RedbYNv.png", source_user)
             else:
                 self.output_msg(c, "Format: !sprite <pokemon>", source_user)
         elif line == "!dab":
-                self.output_msg(c, "/timeout " + source_user + " 1", source_user, 0)
-                self.output_msg(c, "No.", source_user, 0)
+            self.output_msg(c, "/timeout " + source_user + " 1", source_user,
+                            0)
+            self.output_msg(c, "No.", source_user, 0)
         elif line == "!bee":
             out = ""
             while len(out) < 12:
-                out += self.bee[ self.bee_index ]
+                out += self.bee[self.bee_index]
                 self.bee_index += 1
                 if len(out) <= 11:
                     out += " "
@@ -1475,7 +1612,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         elif line == "!shaq":
             out = ""
             while len(out) < 12:
-                out += self.shaq[ self.shaq_index ]
+                out += self.shaq[self.shaq_index]
                 self.shaq_index += 1
                 if self.shaq_index >= len(self.shaq):
                     self.shaq_index = 0
@@ -1502,7 +1639,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                 output = "Honestly PC fuck you. That "
                 output += victim
-                output += " was the only mon I was ever attached to in this run and it did so much in the E4 and then you go and act all confident with it and keep it in on a "
+                output += " was the only mon I was ever attached to in this"
+                output += " run and it did so much in the E4 and then you go "
+                output += "and act all confident with it and keep it in on a "
                 output += killer
 
                 self.output_msg(c, output, source_user)
@@ -1513,9 +1652,11 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     subject = line.split(" ")[1].rstrip("\n").rstrip("\r")
                     name = line.split(" ")[2].rstrip("\n").rstrip("\r")
 
-                    output = "When I met Realtime at Disneyland, he kept talking about "
+                    output = "When I met Realtime at Disneyland, he kept"
+                    output += " talking about"
                     output += subject
-                    output += ". I started to laugh, but then he got really mad. I apologized, and then he called me a "
+                    output += ". I started to laugh, but then he got really "
+                    output += "mad. I apologized, and then he called me a "
                     output += name
 
                     self.output_msg(c, output, source_user)
@@ -1523,7 +1664,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         elif line.startswith("!whisper"):
             output = "Only the following users have DrFujiBot permission: "
             output += ", ".join(self.permitted_users)
-            output += " - If you want to use DrFujiBot yourself, send it a whisper!"
+            output += " - If you want to use DrFujiBot yourself, "
+            output += "send it a whisper!"
             self.output_msg(c, output, source_user)
 
         elif line.startswith("!pokemon"):
@@ -1531,7 +1673,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
                 name = fix_pokemon_name(name)
                 try:
-                    p = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
+                    p = drfujibot_pykemon.api.get(
+                        pokemon=name, url=self.config['pokeapi_url'])
                     type1 = p.types[0].capitalize()
                     type2 = None
                     if len(p.types) > 1:
@@ -1553,33 +1696,39 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     for a in p.abilities:
                         output += a.replace('-', ' ').title()
                         output += ", "
-                    current_gen = genNameToNum(self.get_game_group(source_user))
+                    current_gen = genNameToNum(
+                        self.get_game_group(source_user))
                     if len(p.hidden_ability) == 1 and current_gen >= 5:
                         output += p.hidden_ability[0].replace('-', ' ').title()
                         output += ' (HA)'
                     else:
-                        output = output.rsplit(", ", 1 )[0]
+                        output = output.rsplit(", ", 1)[0]
                     self.output_msg(c, output, source_user)
                 except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                    #output = "Pokemon '" + name + "' not found."
-                    #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                    #if len(suggestions) > 0:    
+                    # output = "Pokemon '" + name + "' not found."
+                    # suggestions = self.pokemon_corrector.suggest(
+                    #    name.capitalize(), limit=3)
+                    # if len(suggestions) > 0:
                     #    output += " Did you mean: "
                     #    output += ", ".join(suggestions)
-                    #self.output_msg(c, output, source_user)
-                    suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                    if len(suggestions) > 0:    
-                        self.processCommand("!pokemon " + suggestions[0], c, source_user)
+                    # self.output_msg(c, output, source_user)
+                    suggestions = self.pokemon_corrector.suggest(
+                        name.capitalize(), limit=3)
+                    if len(suggestions) > 0:
+                        self.processCommand("!pokemon " + suggestions[0], c,
+                                            source_user)
                     else:
-                        self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-                except:
+                        self.output_msg(c, "Pokemon '" + name + "' not found",
+                                        source_user)
+                except Exception:
                     print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!offen"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                p = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
+                p = drfujibot_pykemon.api.get(
+                    pokemon=name, url=self.config['pokeapi_url'])
                 output = name.capitalize() + ": "
 
                 output += "Attack(" + str(p.attack) + ") "
@@ -1588,25 +1737,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #    name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                if len(suggestions) > 0:    
-                    self.processCommand("!offen " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=3)
+                if len(suggestions) > 0:
+                    self.processCommand("!offen " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!defen"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                p = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
+                p = drfujibot_pykemon.api.get(
+                    pokemon=name, url=self.config['pokeapi_url'])
                 output = name.capitalize() + ": "
 
                 output += "HP(" + str(p.hp) + ") "
@@ -1615,25 +1769,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                if len(suggestions) > 0:    
-                    self.processCommand("!defen " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=3)
+                if len(suggestions) > 0:
+                    self.processCommand("!defen " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!abilities"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                p = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
+                p = drfujibot_pykemon.api.get(
+                    pokemon=name, url=self.config['pokeapi_url'])
                 output = name.capitalize() + ": "
 
                 for a in p.abilities:
@@ -1644,21 +1803,25 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     output += p.hidden_ability[0].replace('-', ' ').title()
                     output += ' (HA)'
                 else:
-                    output = output.rsplit(", ", 1 )[0]
+                    output = output.rsplit(", ", 1)[0]
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                if len(suggestions) > 0:    
-                    self.processCommand("!abilities " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=3)
+                if len(suggestions) > 0:
+                    self.processCommand("!abilities " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!move"):
@@ -1667,11 +1830,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 name = name.replace(" ", "-")
                 name = name.replace(",", "-")
                 name = fix_z_move(name)
-                m = drfujibot_pykemon.api.get(move=name,url=self.config['pokeapi_url'])
+                m = drfujibot_pykemon.api.get(
+                    move=name, url=self.config['pokeapi_url'])
 
-                # Go through all the past values, and apply any ones that are relevant.
+                # Go through all the past values,
+                # and apply any ones that are relevant.
                 for pv in m.past_values:
-                    if genNameToNum(self.get_game_group(source_user)) <= genNameToNum(pv.get('version_group').get('name')):
+                    if genNameToNum(
+                            self.get_game_group(source_user)) <= genNameToNum(
+                                pv.get('version_group').get('name')):
                         if pv.get('pp'):
                             m.pp = pv.get('pp')
                         elif pv.get('power'):
@@ -1693,14 +1860,17 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     output += "[" + m.type['name'].capitalize() + "] "
                 else:
                     output += "[" + m.type.capitalize() + "] "
-                output += "BasePower(" + str(m.power) + ") Class(" + m.damage_class.capitalize() + ") "
-                output += "Accuracy(" + str(m.accuracy) + ") PP(" + str(m.pp) + ") "
+                output += "BasePower(" + str(
+                    m.power) + ") Class(" + m.damage_class.capitalize() + ") "
+                output += "Accuracy(" + str(m.accuracy) + ") PP(" + str(
+                    m.pp) + ") "
 
                 if m.flinch_chance > 0:
                     output += "Flinch(" + str(m.flinch_chance) + "%) "
 
                 if len(m.ailment) > 0 and m.ailment_chance > 0:
-                    output += m.ailment.capitalize() + "(" + str(m.ailment_chance) + "%) "
+                    output += m.ailment.capitalize() + "(" + str(
+                        m.ailment_chance) + "%) "
 
                 if m.crit_rate == 1:
                     output += "Crit(+) "
@@ -1721,23 +1891,28 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         output += " " + str(m.stat_chance) + "%"
                     output += ") "
 
-                m.description = m.description.replace("$effect_chance", str(m.stat_chance))
+                m.description = m.description.replace("$effect_chance",
+                                                      str(m.stat_chance))
                 output += m.description
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Move '" + name + "' not found."
-                #suggestions = self.move_corrector.suggest(name.replace('-', ' ').title(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Move '" + name + "' not found."
+                # suggestions = self.move_corrector.suggest(
+                #   name.replace('-', ' ').title(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.move_corrector.suggest(name.replace('-', ' ').title(), limit=1)
-                if len(suggestions) > 0:    
-                    self.processCommand("!move " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.move_corrector.suggest(
+                    name.replace('-', ' ').title(), limit=1)
+                if len(suggestions) > 0:
+                    self.processCommand("!move " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Move '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Move '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!nature"):
@@ -1761,15 +1936,17 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                self.output_msg(c, "Nature '" + name + "' not found.", source_user)
-            except:
+                self.output_msg(c, "Nature '" + name + "' not found.",
+                                source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!ability"):
             name = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
             try:
                 name = name.replace(" ", "-")
-                a = drfujibot_pykemon.api.get(ability=name,url=self.config['pokeapi_url'])
+                a = drfujibot_pykemon.api.get(
+                    ability=name, url=self.config['pokeapi_url'])
 
                 current_gen = genNameToNum(self.get_game_group(source_user))
                 if current_gen >= a.gen_num:
@@ -1780,11 +1957,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     output += name.replace('-', ' ').title() + ": "
                     output += a.effect
                 else:
-                    output = "Ability '" + name.title() + "' is not present in Gen " + str(current_gen)
+                    output = "Ability '" + name.title(
+                    ) + "' is not present in Gen " + str(current_gen)
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                self.output_msg(c, "Ability '" + name + "' not found.", source_user)
+                self.output_msg(c, "Ability '" + name + "' not found.",
+                                source_user)
             except Exception as e:
                 print("Unexpected error: " + str(e))
 
@@ -1802,34 +1981,48 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 move = result.group(2).lower()
                 move = move.replace(" ", "-")
             else:
-                self.output_msg(c, "Invalid format. Usage: !does <pokemon> learn <move>", source_user)
+                self.output_msg(
+                    c, "Invalid format. Usage: !does <pokemon> learn <move>",
+                    source_user)
 
             if poke and move:
                 p = None
                 try:
-                    p = drfujibot_pykemon.api.get(pokemon=poke,url=self.config['pokeapi_url'])
+                    p = drfujibot_pykemon.api.get(
+                        pokemon=poke, url=self.config['pokeapi_url'])
 
                     try:
                         # Just for move name validation:
-                        m = drfujibot_pykemon.api.get(move=move,url=self.config['pokeapi_url'])
-                        info_list = [move_info for move_info in p.moves if move in move_info.get('move').get('name')]
+                        m = drfujibot_pykemon.api.get(
+                            move=move, url=self.config['pokeapi_url'])
+                        info_list = [
+                            move_info for move_info in p.moves
+                            if move in move_info.get('move').get('name')
+                        ]
                         info_list_by_gen = []
                         for i in info_list:
                             for version in i.get('version_group_details'):
-                                gen_name = version.get('version_group').get('name')
-                                if self.get_game_group(source_user) == gen_name:
+                                gen_name = version.get('version_group').get(
+                                    'name')
+                                if self.get_game_group(
+                                        source_user) == gen_name:
                                     info_list_by_gen.append(version)
                         if len(info_list_by_gen) > 0:
-                            output = poke.capitalize() + " learns " + move.replace("-", " ").title() + " "
+                            output = poke.capitalize(
+                            ) + " learns " + move.replace("-",
+                                                          " ").title() + " "
 
                             output_chunks = []
                             for info in info_list_by_gen:
-                                learn = info.get('move_learn_method').get('name')
+                                learn = info.get('move_learn_method').get(
+                                    'name')
                                 if "machine" in learn:
                                     learn = "TM/HM"
 
                                 if "level-up" in learn:
-                                    output_chunks.append("by level up at level " + str(info.get('level_learned_at')))
+                                    output_chunks.append(
+                                        "by level up at level " +
+                                        str(info.get('level_learned_at')))
                                 else:
                                     output_chunks.append("by " + learn)
 
@@ -1841,59 +2034,77 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             else:
                                 output += output_chunks_set[0]
                         else:
-                            output = poke.capitalize() + " does not learn " + move.replace("-", " ").title()
+                            output = poke.capitalize(
+                            ) + " does not learn " + move.replace("-",
+                                                                  " ").title()
 
                         self.output_msg(c, output, source_user)
                     except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                        #self.output_msg(c, "Move '" + move + "' not found.", source_user)
-                        #suggestions = self.move_corrector.suggest(move.replace('-', ' ').title(), limit=3)
-                        #if len(suggestions) > 0:    
+                        # self.output_msg(
+                        #   c, "Move '" + move + "' not found.", source_user)
+                        # suggestions = self.move_corrector.suggest(
+                        #   move.replace('-', ' ').title(), limit=3)
+                        # if len(suggestions) > 0:
                         #    output += " Did you mean: "
                         #    output += ", ".join(suggestions)
-                        #self.output_msg(c, output, source_user)
-                        suggestions = self.move_corrector.suggest(move.replace('-', ' ').title(), limit=1)
-                        if len(suggestions) > 0:    
-                            self.processCommand("!does " + poke + " learn " + suggestions[0], c, source_user)
+                        # self.output_msg(c, output, source_user)
+                        suggestions = self.move_corrector.suggest(
+                            move.replace('-', ' ').title(), limit=1)
+                        if len(suggestions) > 0:
+                            self.processCommand(
+                                "!does " + poke + " learn " + suggestions[0],
+                                c, source_user)
                         else:
-                            self.output_msg(c, "Move '" + move + "' not found", source_user)
-                    except:
+                            self.output_msg(c, "Move '" + move + "' not found",
+                                            source_user)
+                    except Exception:
                         print("Unexpected error: " + str(sys.exc_info()[0]))
                 except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                    #output = "Pokemon '" + poke + "' not found."
-                    #suggestions = self.pokemon_corrector.suggest(poke.capitalize(), limit=3)
-                    #if len(suggestions) > 0:    
+                    # output = "Pokemon '" + poke + "' not found."
+                    # suggestions = self.pokemon_corrector.suggest(
+                    #   poke.capitalize(), limit=3)
+                    # if len(suggestions) > 0:
                     #    output += " Did you mean: "
                     #    output += ", ".join(suggestions)
-                    #self.output_msg(c, output, source_user)
-                    suggestions = self.pokemon_corrector.suggest(poke.capitalize(), limit=1)
-                    if len(suggestions) > 0:    
-                        self.processCommand("!does " + suggestions[0] + " learn " + move, c, source_user)
+                    # self.output_msg(c, output, source_user)
+                    suggestions = self.pokemon_corrector.suggest(
+                        poke.capitalize(), limit=1)
+                    if len(suggestions) > 0:
+                        self.processCommand(
+                            "!does " + suggestions[0] + " learn " + move, c,
+                            source_user)
                     else:
-                        self.output_msg(c, "Pokemon '" + poke + "' not found", source_user)
-                except:
+                        self.output_msg(c, "Pokemon '" + poke + "' not found",
+                                        source_user)
+                except Exception:
                     print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!item"):
             name = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
             try:
                 name = name.replace(" ", "-")
-                i = drfujibot_pykemon.api.get(item=name,url=self.config['pokeapi_url'])
+                i = drfujibot_pykemon.api.get(
+                    item=name, url=self.config['pokeapi_url'])
 
-                output = name.replace('-', ' ').title() + ": " + i.description + " "
+                output = name.replace('-',
+                                      ' ').title() + ": " + i.description + " "
 
                 held_dict = {}
                 for detail in i.held_by_pokemon:
                     for ver in detail.get('version_details'):
-                        if self.get_game(source_user) == ver.get('version').get('name'):
+                        if self.get_game(source_user) == ver.get(
+                                'version').get('name'):
                             rarity = str(ver.get('rarity'))
-                            poke = detail.get('pokemon').get('name').capitalize()
+                            poke = detail.get('pokemon').get(
+                                'name').capitalize()
                             if held_dict.get(rarity):
                                 held_dict[rarity].append(poke)
                             else:
                                 held_dict[rarity] = [poke]
 
                 for k in held_dict.keys():
-                    output += "There is a " + k + "% chance of the following wild Pokemon holding this item: "
+                    output += "There is a " + k + "% chance of the following "
+                    output += "wild Pokemon holding this item: "
                     output += ", ".join(held_dict[k])
                     output += " "
 
@@ -1901,12 +2112,14 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     output += ". "
 
                 if i.value > 0:
-                    output += "This item can be sold for $" + str(i.value) + " "
+                    output += "This item can be sold for $" + str(
+                        i.value) + " "
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                self.output_msg(c, "Item '" + name + "' not found.", source_user)
-            except:
+                self.output_msg(c, "Item '" + name + "' not found.",
+                                source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!weak"):
@@ -1921,7 +2134,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             output = type1.capitalize()
             if type2:
                 output += "/" + type2.capitalize()
-            output += " is weak to: " 
+            output += " is weak to: "
             weak_strings = []
             for w in weaknesses:
                 string = w.capitalize()
@@ -1948,7 +2161,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             output = type1.capitalize()
             if type2:
                 output += "/" + type2.capitalize()
-            output += " is resistant to: " 
+            output += " is resistant to: "
             resist_strings = []
             for r in resistances:
                 string = r.capitalize()
@@ -1995,8 +2208,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             no_dmg_types.append(t.get('name'))
 
                     # Take out no-damage types outright.
-                    weaknesses = [w for w in weaknesses if w not in no_dmg_types]
-                    resistances = [r for r in resistances if r not in no_dmg_types]
+                    weaknesses = [
+                        w for w in weaknesses if w not in no_dmg_types
+                    ]
+                    resistances = [
+                        r for r in resistances if r not in no_dmg_types
+                    ]
 
                     weaknesses_copy = weaknesses[:]
 
@@ -2029,7 +2246,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             output += "0.25x)"
                     else:
                         output += " does normal damage"
-                        
+
                     output += " against " + defending_type1.capitalize()
                     if defending_type2:
                         output += "/" + defending_type2.capitalize()
@@ -2037,10 +2254,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.output_msg(c, output, source_user)
                 except drfujibot_pykemon.exceptions.ResourceNotFoundError:
                     self.output_msg(c, "Type(s) not found.", source_user)
-                except:
+                except Exception:
                     print("Unexpected error: " + str(sys.exc_info()[0]))
             else:
-                self.output_msg(c, "Invalid format. Usage: !type <attacking_type> against <defending_type1> <defending_type2>", source_user)
+                output = "Invalid format. Usage: !type <attacking_type> "
+                output += "against <defending_type1> <defending_type2>"
+                self.output_msg(c, output, source_user)
 
         elif line.startswith("!learnset"):
             regex = re.compile("!learnset (.*)")
@@ -2054,12 +2273,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 poke = fix_pokemon_name(poke)
                 group = self.get_game_group(source_user)
             else:
-                self.output_msg(c, "Invalid format. Usage: !learnset <pokemon>", source_user)
+                self.output_msg(c,
+                                "Invalid format. Usage: !learnset <pokemon>",
+                                source_user)
 
             if poke and group:
                 output = poke.capitalize() + " "
                 try:
-                    p = drfujibot_pykemon.api.get(pokemon=poke,url=self.config['pokeapi_url'])
+                    p = drfujibot_pykemon.api.get(
+                        pokemon=poke, url=self.config['pokeapi_url'])
 
                     entries = []
                     for move in p.moves:
@@ -2069,28 +2291,36 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 if group == gen_name:
                                     level = g.get('level_learned_at')
                                     if level > 0:
-                                        entries.append("| " + str(level) + " " + move.get('move').get('name').replace("-", " ").title() + " ")
+                                        entries.append(
+                                            "| " + str(level) + " " +
+                                            move.get('move').get('name').
+                                            replace("-", " ").title() + " ")
 
                     entries = list(set(entries))
-                    entries = sorted(entries, key=lambda x: int(x.split(" ")[1]))
+                    entries = sorted(
+                        entries, key=lambda x: int(x.split(" ")[1]))
 
                     for en in entries:
                         output += en
 
                     self.output_msg(c, output, source_user)
                 except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                    #output = "Pokemon '" + poke + "' not found."
-                    #suggestions = self.pokemon_corrector.suggest(poke.capitalize(), limit=3)
-                    #if len(suggestions) > 0:    
+                    # output = "Pokemon '" + poke + "' not found."
+                    # suggestions = self.pokemon_corrector.suggest(
+                    #   poke.capitalize(), limit=3)
+                    # if len(suggestions) > 0:
                     #    output += " Did you mean: "
                     #    output += ", ".join(suggestions)
-                    #self.output_msg(c, output, source_user)
-                    suggestions = self.pokemon_corrector.suggest(poke.capitalize(), limit=1)
-                    if len(suggestions) > 0:    
-                        self.processCommand("!learnset " + suggestions[0], c, source_user)
+                    # self.output_msg(c, output, source_user)
+                    suggestions = self.pokemon_corrector.suggest(
+                        poke.capitalize(), limit=1)
+                    if len(suggestions) > 0:
+                        self.processCommand("!learnset " + suggestions[0], c,
+                                            source_user)
                     else:
-                        self.output_msg(c, "Pokemon '" + poke + "' not found", source_user)
-                except:
+                        self.output_msg(c, "Pokemon '" + poke + "' not found",
+                                        source_user)
+                except Exception:
                     print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!tmset"):
@@ -2105,15 +2335,19 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 poke = fix_pokemon_name(poke)
                 group = self.get_game_group(source_user)
             else:
-                self.output_msg(c, "Invalid format. Usage: !tmset <pokemon>", source_user)
+                self.output_msg(c, "Invalid format. Usage: !tmset <pokemon>",
+                                source_user)
 
             if poke.lower() == "mew":
-                self.output_msg(c, "Mew learns all the TMs. Stop trying to spam.", source_user)
+                self.output_msg(
+                    c, "Mew learns all the TMs. Stop trying to spam.",
+                    source_user)
             else:
                 if poke and group:
                     output = poke.capitalize() + ": "
                     try:
-                        p = drfujibot_pykemon.api.get(pokemon=poke,url=self.config['pokeapi_url'])
+                        p = drfujibot_pykemon.api.get(
+                            pokemon=poke, url=self.config['pokeapi_url'])
 
                         entries = []
                         for move in p.moves:
@@ -2121,8 +2355,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 gen_name = g.get('version_group').get('name')
                                 if group:
                                     if group == gen_name:
-                                        if 'machine' in g.get('move_learn_method').get('name'):
-                                            entries.append(move.get('move').get('name').replace("-", " ").title())
+                                        if 'machine' in g.get(
+                                                'move_learn_method').get(
+                                                    'name'):
+                                            entries.append(
+                                                move.get('move').get(
+                                                    'name').replace(
+                                                        "-", " ").title())
 
                         entries = list(set(entries))
 
@@ -2130,18 +2369,23 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                         self.output_msg(c, output, source_user)
                     except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                        #output = "Pokemon '" + poke + "' not found."
-                        #suggestions = self.pokemon_corrector.suggest(poke.capitalize(), limit=3)
-                        #if len(suggestions) > 0:    
+                        # output = "Pokemon '" + poke + "' not found."
+                        # suggestions = self.pokemon_corrector.suggest(
+                        #   poke.capitalize(), limit=3)
+                        # if len(suggestions) > 0:
                         #    output += " Did you mean: "
                         #    output += ", ".join(suggestions)
-                        #self.output_msg(c, output, source_user)
-                        suggestions = self.pokemon_corrector.suggest(poke.capitalize(), limit=1)
-                        if len(suggestions) > 0:    
-                            self.processCommand("!tmset " + suggestions[0], c, source_user)
+                        # self.output_msg(c, output, source_user)
+                        suggestions = self.pokemon_corrector.suggest(
+                            poke.capitalize(), limit=1)
+                        if len(suggestions) > 0:
+                            self.processCommand("!tmset " + suggestions[0], c,
+                                                source_user)
                         else:
-                            self.output_msg(c, "Pokemon '" + poke + "' not found", source_user)
-                    except:
+                            self.output_msg(c,
+                                            "Pokemon '" + poke + "' not found",
+                                            source_user)
+                    except Exception:
                         print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!setgame"):
@@ -2152,34 +2396,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 game = result.group(1)
 
                 valid_games = [
-                        'red',
-                        'blue',
-                        'yellow',
-                        'gold',
-                        'silver',
-                        'crystal',
-                        'ruby',
-                        'sapphire',
-                        'emerald',
-                        'fire-red',
-                        'leaf-green',
-                        'diamond',
-                        'pearl',
-                        'platinum',
-                        'heart-gold',
-                        'soul-silver',
-                        'black',
-                        'white',
-                        'black-2',
-                        'white-2',
-                        'x',
-                        'y',
-                        'omega-ruby',
-                        'alpha-sapphire',
-                        'rising-ruby',
-                        'sun',
-                        'moon'
-                        ]
+                    'red', 'blue', 'yellow', 'gold', 'silver', 'crystal',
+                    'ruby', 'sapphire', 'emerald', 'fire-red', 'leaf-green',
+                    'diamond', 'pearl', 'platinum', 'heart-gold',
+                    'soul-silver', 'black', 'white', 'black-2', 'white-2', 'x',
+                    'y', 'omega-ruby', 'alpha-sapphire', 'rising-ruby', 'sun',
+                    'moon'
+                ]
 
                 game = game.replace(' ', '-').lower()
                 if "ultra-sun" == game:
@@ -2199,18 +2422,21 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     game = 'heart-gold'
                 elif game == 'soulsilver':
                     game = 'soul-silver'
-                elif game == 'omegaruby' or game == 'rising-ruby' or game == 'risingruby':
+                elif game == 'omegaruby' or game == 'rising-ruby' \
+                        or game == 'risingruby':
                     game = 'omega-ruby'
                     isRising = True
-                elif game == 'alphasapphire' or game == 'sinking-sapphire' or game == 'sinkingsapphire':
+                elif game == 'alphasapphire' or game == 'sinking-sapphire' \
+                        or game == 'sinkingsapphire':
                     game = 'alpha-sapphire'
                     isRising = True
                 elif game == 'sun' or game == 'moon':
+                    # What is this variable used for?
                     isGen7 = True
 
                 if game in valid_games:
                     config = None
-                    if self.whisperMode == True:
+                    if self.whisperMode:
                         if self.bot_type and self.bot_type == 'discord':
                             configname = 'whisper_discord.json'
                         else:
@@ -2220,8 +2446,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         if config:
                             config['games'][source_user] = game
                             if isRising:
-                                config['pokeapi_url'] = 'http://localhost:8001/api/v2'
-                                self.config['pokeapi_url'] = 'http://localhost:8001/api/v2'
+                                config['pokeapi_url'] = (
+                                    'https://pokeapi.co/api/v2')
+                                self.config['pokeapi_url'] = (
+                                    'https://pokeapi.co/api/v2')
                             else:
                                 config['pokeapi_url'] = ''
                                 self.config['pokeapi_url'] = ''
@@ -2230,31 +2458,42 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     else:
                         self.config['games'][self.username] = game
                         if isRising:
-                            self.config['pokeapi_url'] = 'http://localhost:8001/api/v2'
+                            self.config[
+                                'pokeapi_url'] = 'https://pokeapi.co/api/v2'
                         else:
                             self.config['pokeapi_url'] = ''
 
-                        if None != self.config.get('current_run') and len(self.config.get('current_run')) > 0 and None != self.config.get('run_data'):
-                            self.config['run_data'][self.config['current_run']]['game'] = game
+                        if self.config.get('current_run') and len(
+                                self.config.get('current_run')
+                        ) > 0 and self.config.get('run_data'):
+                            self.config['run_data'][
+                                self.config['current_run']]['game'] = game
 
                         self.update_config()
                         self.game = game
 
-                    output = "Set game to Pokemon " + original_game_str.replace('-', ' ').title() + " SeemsGood"
-
+                    output = "Set game to Pokemon "
+                    output += original_game_str.replace('-', ' ').title()
+                    output += " SeemsGood"
                     self.output_msg(c, output, source_user)
                 else:
-                    self.output_msg(c, "Invalid game. Usage: !setgame <game name>", source_user)
+                    self.output_msg(
+                        c, "Invalid game. Usage: !setgame <game name>",
+                        source_user)
             else:
-                self.output_msg(c, "Invalid format. Usage: !setgame <game name>", source_user)
+                self.output_msg(c,
+                                "Invalid format. Usage: !setgame <game name>",
+                                source_user)
 
         elif line.startswith("!evol"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                species = drfujibot_pykemon.api.get(species=name,url=self.config['pokeapi_url'])
+                species = drfujibot_pykemon.api.get(
+                    species=name, url=self.config['pokeapi_url'])
                 chain_id = species.evolution_chain_url.split("/")[-2]
-                ch = drfujibot_pykemon.api.get(evo_chain=chain_id,url=self.config['pokeapi_url'])
+                ch = drfujibot_pykemon.api.get(
+                    evo_chain=chain_id, url=self.config['pokeapi_url'])
 
                 this_chain = find_chain(ch.chain, name)
                 output = ""
@@ -2263,23 +2502,30 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     found_mega = False
                     for var in species.varieties:
                         if var.get('pokemon').get('name').endswith('-mega'):
-                            output += name.capitalize() + " mega evolves to Mega " + name.capitalize()
+                            output += name.capitalize(
+                            ) + " mega evolves to Mega " + name.capitalize()
                             found_mega = True
                             break
                     if not found_mega:
-                        output += name.capitalize() + " does not evolve any further."
+                        output += name.capitalize(
+                        ) + " does not evolve any further."
                 else:
                     for evo_chain in this_chain.get('evolves_to'):
                         if len(evo_chain.get('evolution_details')) == 1:
-                            output += name.capitalize() + " evolves into " + evo_chain.get('species').get('name').capitalize() + " "
+                            output += name.capitalize(
+                            ) + " evolves into " + evo_chain.get(
+                                'species').get('name').capitalize() + " "
                             details = evo_chain.get('evolution_details')[0]
 
                             if details.get('min_level'):
-                                output += "at level " + str(details.get('min_level'))
+                                output += "at level " + str(
+                                    details.get('min_level'))
                                 if details.get('gender'):
                                     output += ", if female."
-                                elif details.get('relative_physical_stats') is not None:
-                                    value = details.get('relative_physical_stats')
+                                elif details.get(
+                                        'relative_physical_stats') is not None:
+                                    value = details.get(
+                                        'relative_physical_stats')
                                     if 0 == value:
                                         output += ", if Attack = Defense."
                                     elif 1 == value:
@@ -2289,79 +2535,117 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 elif details.get('needs_overworld_rain'):
                                     output += ", if it's raining."
                                 elif details.get('turn_upside_down'):
-                                    output += ", if the 3DS is held upside down."
+                                    output += (
+                                        ", if the 3DS is held upside down.")
                                 else:
                                     output += "."
                             elif details.get('min_beauty'):
-                                output += "with beauty level " + str(details.get('min_beauty') + ".")
+                                output += "with beauty level " + str(
+                                    details.get('min_beauty') + ".")
                             elif details.get('min_happiness'):
-                                output += "with happiness level " + str(details.get('min_happiness'))
+                                output += "with happiness level " + str(
+                                    details.get('min_happiness'))
                                 if details.get('time_of_day'):
-                                    output += " when it is " + details.get('time_of_day') + "-time."
+                                    output += " when it is " + details.get(
+                                        'time_of_day') + "-time."
                                 else:
                                     output += "."
                             elif details.get('time_of_day'):
-                                output += "when it is " + details.get('time_of_day') + "-time."
-                            elif details.get('item') and details.get('trigger'):
-                                item = details.get('item').get('name').replace('-', ' ').title()
+                                output += "when it is " + details.get(
+                                    'time_of_day') + "-time."
+                            elif details.get('item') and details.get(
+                                    'trigger'):
+                                item = details.get('item').get('name').replace(
+                                    '-', ' ').title()
                                 trigger = details.get('trigger').get('name')
-                                if "use-item" == trigger: output += "when a " + item + " is used on it."
-                            elif details.get('known_move_type') and details.get('min_affection'):
-                                move_type = details.get('known_move_type').get('name').capitalize()
+                                if "use-item" == trigger:
+                                    output += "when a " + item
+                                    output += " is used on it"
+                            elif details.get(
+                                    'known_move_type') and details.get(
+                                        'min_affection'):
+                                move_type = details.get('known_move_type').get(
+                                    'name').capitalize()
                                 affection = details.get('min_affection')
-                                output += "with affection level " + str(affection) + " and knowing a " + move_type + " type move."
+                                output += "with affection level " + str(
+                                    affection) + " and knowing a " + move_type
+                                + " type move."
                             elif details.get('known_move'):
-                                output += "upon level-up when it knows " + details.get('known_move').get('name').replace('-', ' ').title()
+                                output += "upon level-up when it knows "
+                                +details.get('known_move').get('name').replace(
+                                    '-', ' ').title()
                             elif details.get('trigger'):
-                                if "trade" == details.get('trigger').get('name'):
+                                if "trade" == details.get('trigger').get(
+                                        'name'):
                                     output += "when traded"
                                     if details.get('held_item'):
-                                        output += " and holding a " + details.get('held_item').get('name').replace('-', ' ').title() + "."
+                                        output += " and holding a "
+                                        +details.get(
+                                            'held_item').get('name').replace(
+                                                '-', ' ').title() + "."
                                     else:
                                         output += "."
-                                elif "shed" == details.get('trigger').get('name'):
-                                    output += "if an extra party slot is open and an extra PokeBall is available."
+                                elif "shed" == details.get('trigger').get(
+                                        'name'):
+                                    output += "if an extra party slot is open"
+                                    output += " and an extra PokeBall is "
+                                    output += "available."
                         else:
                             for det in evo_chain.get('evolution_details'):
                                 if det.get('location'):
-                                    loc_id = det.get('location').get('url').split('/')[-2]
+                                    loc_id = det.get('location').get(
+                                        'url').split('/')[-2]
                                     try:
-                                        loc = drfujibot_pykemon.api.get(location=loc_id)
-                                        if loc.region == getRegionForGame(self.get_game(source_user)):
-                                            output += name.capitalize() + " evolves into " + evo_chain.get('species').get('name').capitalize() + " "
-                                            output += "at " + loc.name.replace('-', ' ').title()
+                                        loc = drfujibot_pykemon.api.get(
+                                            location=loc_id)
+                                        if loc.region == getRegionForGame(
+                                                self.get_game(source_user)):
+                                            output += name.capitalize(
+                                            ) + " evolves into "
+                                            +evo_chain.get('species').get(
+                                                'name').capitalize() + " "
+                                            output += "at " + loc.name.replace(
+                                                '-', ' ').title()
                                             if det.get('trigger'):
-                                                if "level-up" == det.get('trigger').get('name'):
+                                                if "level-up" == det.get(
+                                                        'trigger').get('name'):
                                                     output += " by level up."
-                                    except:
-                                        print("Unexpected error: " + str(sys.exc_info()[0]))
+                                    except Exception:
+                                        print("Unexpected error: " +
+                                              str(sys.exc_info()[0]))
 
                         output += " "
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=1)
-                if len(suggestions) > 0:    
-                    self.processCommand("!evol " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=1)
+                if len(suggestions) > 0:
+                    self.processCommand("!evol " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!char"):
             if len(line.split(" ")) >= 2:
-                phrase = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
+                phrase = line.split(" ",
+                                    1)[1].rstrip("\n").rstrip("\r").lower()
                 try:
-                    # Can't query by name, just grab all 30 and loop through them.
+                    # Can't query by name
+                    # just grab all 30 and loop through them.
                     characteristics = []
                     for i in range(30):
-                        ch = drfujibot_pykemon.api.get(characteristic=(i+1))
+                        ch = drfujibot_pykemon.api.get(characteristic=(i + 1))
                         characteristics.append(ch)
 
                     output = ""
@@ -2384,45 +2668,54 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     self.output_msg(c, output, source_user)
                 except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                    self.output_msg(c, "Characteristic not found.", source_user)
-                except:
+                    self.output_msg(c, "Characteristic not found.",
+                                    source_user)
+                except Exception:
                     print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!ev "):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                p = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
+                p = drfujibot_pykemon.api.get(
+                    pokemon=name, url=self.config['pokeapi_url'])
                 output = name.capitalize() + " EV Yield: "
 
                 evs = []
                 for stat in p.stats:
                     if stat.get('effort') > 0:
-                        evs.append(stat.get('stat').get('name').replace('-', ' ').title() + "(" + str(stat.get('effort')) + ")")
+                        evs.append(
+                            stat.get('stat').get('name').replace('-', ' ').
+                            title() + "(" + str(stat.get('effort')) + ")")
 
                 output += " ".join(evs)
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=1)
-                if len(suggestions) > 0:    
-                    self.processCommand("!ev " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=1)
+                if len(suggestions) > 0:
+                    self.processCommand("!ev " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!grassknot") or line.startswith("!lowkick"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                p = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
+                p = drfujibot_pykemon.api.get(
+                    pokemon=name, url=self.config['pokeapi_url'])
 
                 output = "Low Kick/Grass Knot has "
 
@@ -2446,18 +2739,22 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=1)
-                if len(suggestions) > 0:    
-                    self.processCommand("!grassknot " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=1)
+                if len(suggestions) > 0:
+                    self.processCommand("!grassknot " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
         elif line.startswith("!heatcrash") or line.startswith("!heavyslam"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
@@ -2465,8 +2762,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             name2 = line.split(" ")[2].rstrip("\n").rstrip("\r").lower()
             name2 = fix_pokemon_name(name2)
             try:
-                p1 = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
-                p2 = drfujibot_pykemon.api.get(pokemon=name2, url=self.config['pokeapi_url'])
+                p1 = drfujibot_pykemon.api.get(
+                    pokemon=name, url=self.config['pokeapi_url'])
+                p2 = drfujibot_pykemon.api.get(
+                    pokemon=name2, url=self.config['pokeapi_url'])
 
                 output = "Heavy Slam/Heat Crash used by "
 
@@ -2485,53 +2784,64 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     else:
                         bp = "120"
 
-                output += name.capitalize() + " has " + bp + " base power against " + name2.capitalize()
+                output += name.capitalize(
+                ) + " has " + bp + " base power against " + name2.capitalize()
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=1)
-                if len(suggestions) > 0:    
-                    self.processCommand("!heatcrash " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=1)
+                if len(suggestions) > 0:
+                    self.processCommand("!heatcrash " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!gender"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                p = drfujibot_pykemon.api.get(species=name,url=self.config['pokeapi_url'])
+                p = drfujibot_pykemon.api.get(
+                    species=name, url=self.config['pokeapi_url'])
 
                 output = name.capitalize() + ": "
                 if -1 == p.gender_rate:
                     output += "Genderless"
                 else:
-                    percent_female = ( float(p.gender_rate) / float(8) ) * 100
+                    percent_female = (float(p.gender_rate) / float(8)) * 100
                     percent_male = 100 - percent_female
 
-                    output += "Male(" + str(percent_male) + "%) Female(" + str(percent_female) + "%)"
+                    output += "Male(" + str(percent_male) + "%) Female(" + str(
+                        percent_female) + "%)"
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=1)
-                if len(suggestions) > 0:    
-                    self.processCommand("!gender " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=1)
+                if len(suggestions) > 0:
+                    self.processCommand("!gender " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!faster"):
@@ -2542,89 +2852,122 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 pokemon2 = fix_pokemon_name(pokemon2)
 
                 try:
-                    p1 = drfujibot_pykemon.api.get(pokemon=pokemon1,url=self.config['pokeapi_url'])
+                    p1 = drfujibot_pykemon.api.get(
+                        pokemon=pokemon1, url=self.config['pokeapi_url'])
 
                     try:
-                        p2 = drfujibot_pykemon.api.get(pokemon=pokemon2,url=self.config['pokeapi_url'])
+                        p2 = drfujibot_pykemon.api.get(
+                            pokemon=pokemon2, url=self.config['pokeapi_url'])
 
                         if p1.speed > p2.speed:
-                            output = pokemon1.capitalize() + " (" + str(p1.speed) + ") is faster than " + pokemon2.capitalize() + " (" + str(p2.speed) + ")"
+                            output = pokemon1.capitalize() + " (" + str(
+                                p1.speed
+                            ) + ") is faster than " + pokemon2.capitalize(
+                            ) + " (" + str(p2.speed) + ")"
                         elif p1.speed < p2.speed:
-                            output = pokemon1.capitalize() + " (" + str(p1.speed) + ") is slower than " + pokemon2.capitalize() + " (" + str(p2.speed) + ")"
+                            output = pokemon1.capitalize() + " (" + str(
+                                p1.speed
+                            ) + ") is slower than " + pokemon2.capitalize(
+                            ) + " (" + str(p2.speed) + ")"
                         elif p1.speed == p2.speed:
-                            output = pokemon1.capitalize() + " and " + pokemon2.capitalize() + " are tied for speed (" + str(p1.speed) + ")"
+                            output = pokemon1.capitalize(
+                            ) + " and " + pokemon2.capitalize(
+                            ) + " are tied for speed (" + str(p1.speed) + ")"
 
                         self.output_msg(c, output, source_user)
 
                     except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                        #output = "Pokemon '" + pokemon2 + "' not found."
-                        #suggestions = self.pokemon_corrector.suggest(pokemon2.capitalize(), limit=3)
-                        #if len(suggestions) > 0:    
+                        # output = "Pokemon '" + pokemon2 + "' not found."
+                        # suggestions = self.pokemon_corrector.suggest(
+                        #   pokemon2.capitalize(), limit=3)
+                        # if len(suggestions) > 0:
                         #    output += " Did you mean: "
                         #    output += ", ".join(suggestions)
-                        #self.output_msg(c, output, source_user)
-                        suggestions = self.pokemon_corrector.suggest(pokemon2.capitalize(), limit=1)
-                        if len(suggestions) > 0:    
-                            self.processCommand("!faster " + pokemon1 + " " + suggestions[0], c, source_user)
+                        # self.output_msg(c, output, source_user)
+                        suggestions = self.pokemon_corrector.suggest(
+                            pokemon2.capitalize(), limit=1)
+                        if len(suggestions) > 0:
+                            self.processCommand(
+                                "!faster " + pokemon1 + " " + suggestions[0],
+                                c, source_user)
                         else:
-                            self.output_msg(c, "Pokemon '" + pokemon2 + "' not found", source_user)
-                    except:
+                            self.output_msg(
+                                c, "Pokemon '" + pokemon2 + "' not found",
+                                source_user)
+                    except Exception:
                         print("Unexpected error: " + str(sys.exc_info()[0]))
 
                 except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                    #output = "Pokemon '" + pokemon1 + "' not found."
-                    #suggestions = self.pokemon_corrector.suggest(pokemon1.capitalize(), limit=3)
-                    #if len(suggestions) > 0:    
+                    # output = "Pokemon '" + pokemon1 + "' not found."
+                    # suggestions = self.pokemon_corrector.suggest(
+                    #   pokemon1.capitalize(), limit=3)
+                    # if len(suggestions) > 0:
                     #    output += " Did you mean: "
                     #    output += ", ".join(suggestions)
-                    #self.output_msg(c, output, source_user)
-                    suggestions = self.pokemon_corrector.suggest(pokemon1.capitalize(), limit=1)
-                    if len(suggestions) > 0:    
-                        self.processCommand("!faster " + suggestions[0] + " " + pokemon2, c, source_user)
+                    # self.output_msg(c, output, source_user)
+                    suggestions = self.pokemon_corrector.suggest(
+                        pokemon1.capitalize(), limit=1)
+                    if len(suggestions) > 0:
+                        self.processCommand(
+                            "!faster " + suggestions[0] + " " + pokemon2, c,
+                            source_user)
                     else:
-                        self.output_msg(c, "Pokemon '" + pokemon1 + "' not found", source_user)
-                except:
+                        self.output_msg(c,
+                                        "Pokemon '" + pokemon1 + "' not found",
+                                        source_user)
+                except Exception:
                     print("Unexpected error: " + str(sys.exc_info()[0]))
             else:
-                self.output_msg(c, "Please input more than one pokemon.", source_user)
+                self.output_msg(c, "Please input more than one pokemon.",
+                                source_user)
 
         elif line.startswith("!exp"):
             name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
             name = fix_pokemon_name(name)
             try:
-                p = drfujibot_pykemon.api.get(pokemon=name,url=self.config['pokeapi_url'])
-                output = name.capitalize() + ": " + str(p.base_experience) + " Base Exp."
+                p = drfujibot_pykemon.api.get(
+                    pokemon=name, url=self.config['pokeapi_url'])
+                output = name.capitalize() + ": " + str(
+                    p.base_experience) + " Base Exp."
 
                 self.output_msg(c, output, source_user)
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                #output = "Pokemon '" + name + "' not found."
-                #suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=3)
-                #if len(suggestions) > 0:    
+                # output = "Pokemon '" + name + "' not found."
+                # suggestions = self.pokemon_corrector.suggest(
+                #   name.capitalize(), limit=3)
+                # if len(suggestions) > 0:
                 #    output += " Did you mean: "
                 #    output += ", ".join(suggestions)
-                #self.output_msg(c, output, source_user)
-                suggestions = self.pokemon_corrector.suggest(name.capitalize(), limit=1)
-                if len(suggestions) > 0:    
-                    self.processCommand("!exp " + suggestions[0], c, source_user)
+                # self.output_msg(c, output, source_user)
+                suggestions = self.pokemon_corrector.suggest(
+                    name.capitalize(), limit=1)
+                if len(suggestions) > 0:
+                    self.processCommand("!exp " + suggestions[0], c,
+                                        source_user)
                 else:
-                    self.output_msg(c, "Pokemon '" + name + "' not found", source_user)
-            except:
+                    self.output_msg(c, "Pokemon '" + name + "' not found",
+                                    source_user)
+            except Exception:
                 print("Unexpected error: " + str(sys.exc_info()[0]))
 
         elif line.startswith("!remind"):
             if len(line.split(" ")) > 2:
-                timestring = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                timestring = line.split(" ")[1].rstrip("\n").rstrip(
+                    "\r").lower()
                 message = line.split(" ", 2)[2].rstrip("\n").rstrip("\r")
 
                 delta = parse_time(timestring)
                 if delta:
-                    self.output_msg(c, "I will remind you in " + timestring + " to " + message, source_user)
+                    self.output_msg(
+                        c, "I will remind you in " + timestring + " to " +
+                        message, source_user)
 
                     reminder = ""
                     if self.bot_type and self.bot_type == "discord":
                         if source_id:
                             # Discord main channel mode
-                            reminder = "Reminder <@!" + source_id + "> : " + message
+                            reminder = "Reminder <@!" + source_id + "> : "
+                            +message
                         else:
                             # Discord whisper mode
                             reminder = "Reminder: " + message
@@ -2632,24 +2975,34 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         # Twitch mode
                         reminder = "Reminder @" + source_user + " : " + message
 
-                    t = threading.Timer(delta.total_seconds(), self.output_msg, [c, reminder, source_user])
+                    t = threading.Timer(delta.total_seconds(), self.output_msg,
+                                        [c, reminder, source_user])
                     t.start()
                 else:
-                    self.output_msg(c, "Invalid time string. Examples: 5m 5m30s 1h5m30s", source_user)
+                    self.output_msg(
+                        c, "Invalid time string. Examples: 5m 5m30s 1h5m30s",
+                        source_user)
             else:
-                self.output_msg(c, "Format: !remind <time> <message>", source_user)
+                self.output_msg(c, "Format: !remind <time> <message>",
+                                source_user)
 
         elif line.startswith("!deaths"):
             deaths = self.get_current_run_data('deaths')
-            if None == deaths:
+            if not deaths:
                 deaths = str(self.deaths)
             else:
                 deaths = str(deaths)
-            sorted_fallen = sorted(self.fallen_timestamps.items(), key=operator.itemgetter(1), reverse=True)
+            sorted_fallen = sorted(
+                self.fallen_timestamps.items(),
+                key=operator.itemgetter(1),
+                reverse=True)
             recent_deaths = []
             for i in range(min(3, len(sorted_fallen))):
                 recent_deaths.append(sorted_fallen[i][0])
-            self.output_msg(c, "There have been " + deaths + " deaths so far. Most recent deaths (latest first): " + ", ".join(recent_deaths), source_user)
+            self.output_msg(
+                c, "There have been " + deaths +
+                " deaths so far. Most recent deaths (latest first): " +
+                ", ".join(recent_deaths), source_user)
 
         elif line.startswith("!setdeaths"):
             if len(line.split(" ")) == 2:
@@ -2659,9 +3012,11 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     self.config['deaths'] = deaths
 
-                    if None != self.config['current_run'] and None != self.config['run_data']:
-                        if None != self.config['run_data'].get(self.config['current_run']):
-                            self.config['run_data'][self.config['current_run']]['deaths'] = deaths
+                    if self.config['current_run'] and self.config['run_data']:
+                        if self.config['run_data'].get(
+                                self.config['current_run']):
+                            self.config['run_data'][
+                                self.config['current_run']]['deaths'] = deaths
 
                     if 0 == deaths:
                         self.fallen = {}
@@ -2671,9 +3026,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     self.update_config()
 
-                    self.output_msg(c, "Set death counter to " + str(self.deaths), source_user)
-                except:
-                    self.output_msg(c, "Format: !setdeaths <number>", source_user)
+                    self.output_msg(c,
+                                    "Set death counter to " + str(self.deaths),
+                                    source_user)
+                except Exception:
+                    self.output_msg(c, "Format: !setdeaths <number>",
+                                    source_user)
             else:
                 self.output_msg(c, "Format: !setdeaths <number>", source_user)
 
@@ -2684,20 +3042,24 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 pokemon = ""
 
             if self.meme_mode:
-                if None == self.current_deaths.get(pokemon):
+                if not self.current_deaths.get(pokemon):
                     self.deaths += 1
                     self.config['deaths'] = self.deaths
-                    if None != self.config['current_run'] and None != self.config['run_data']:
-                        if None != self.config['run_data'].get(self.config['current_run']):
-                            self.config['run_data'][self.config['current_run']]['deaths'] = self.deaths
+                    if self.config['current_run'] and self.config['run_data']:
+                        if self.config['run_data'].get(
+                                self.config['current_run']):
+                            self.config['run_data'][self.config[
+                                'current_run']]['deaths'] = self.deaths
                     self.update_config()
 
-                    output = "Death counter: " + str(self.deaths) + " riPepperonis "
+                    output = "Death counter: " + str(
+                        self.deaths) + " riPepperonis "
                     output += "Press F to pay respects to '" + pokemon + "'"
                     self.output_msg(c, output, source_user)
 
                     # Auto-marker
-                    self.output_msg(c, '/marker Death of "' + pokemon + '"', source_user)
+                    self.output_msg(c, '/marker Death of "' + pokemon + '"',
+                                    source_user)
 
                     self.current_deaths[pokemon] = time.time()
                     self.deaths_dict[pokemon] = []
@@ -2705,13 +3067,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             else:
                 self.deaths += 1
 
-                output = "Death counter: " + str(self.deaths) + " riPepperonis "
+                output = "Death counter: " + str(
+                    self.deaths) + " riPepperonis "
                 self.output_msg(c, output, source_user)
 
                 self.config['deaths'] = self.deaths
-                if None != self.config['current_run'] and None != self.config['run_data']:
-                    if None != self.config['run_data'].get(self.config['current_run']):
-                        self.config['run_data'][self.config['current_run']]['deaths'] = self.deaths
+                if self.config['current_run'] and self.config['run_data']:
+                    if self.config['run_data'].get(self.config['current_run']):
+                        self.config['run_data'][
+                            self.config['current_run']]['deaths'] = self.deaths
                 self.update_config()
 
         elif line.startswith("!ez"):
@@ -2724,7 +3088,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
         elif line.startswith("!fallen"):
 
-            sorted_pairs = sorted(self.fallen.items(), key=operator.itemgetter(1), reverse=True)
+            sorted_pairs = sorted(
+                self.fallen.items(), key=operator.itemgetter(1), reverse=True)
 
             output = "The most respected fallen: "
             if len(sorted_pairs) >= 1:
@@ -2754,7 +3119,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.config['permitted_users'] = save_users
                 self.update_config()
 
-                self.output_msg(c, "Added user '" + new_user + "' to permitted users.", source_user)
+                self.output_msg(
+                    c, "Added user '" + new_user + "' to permitted users.",
+                    source_user)
             else:
                 self.output_msg(c, "Format: !adduser <username>", source_user)
 
@@ -2772,11 +3139,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.config['permitted_users'] = save_users
                     self.update_config()
 
-                    self.output_msg(c, "Removed user '" + remove_user + "' from permitted users.", source_user)
+                    self.output_msg(
+                        c, "Removed user '" + remove_user +
+                        "' from permitted users.", source_user)
                 else:
-                    self.output_msg(c, "User '" + remove_user + "' not found.", source_user)
+                    self.output_msg(c, "User '" + remove_user + "' not found.",
+                                    source_user)
             else:
-                self.output_msg(c, "Format: !removeuser <username>", source_user)
+                self.output_msg(c, "Format: !removeuser <username>",
+                                source_user)
 
         elif line.startswith("!addshoutout"):
             if len(line.split(" ")) == 2:
@@ -2786,9 +3157,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.config['auto_shoutout'].append(new_user.lower())
                     self.update_config()
 
-                self.output_msg(c, "Added user '" + new_user + "' to auto-shoutout.", source_user)
+                self.output_msg(
+                    c, "Added user '" + new_user + "' to auto-shoutout.",
+                    source_user)
             else:
-                self.output_msg(c, "Format: !addshoutout <username>", source_user)
+                self.output_msg(c, "Format: !addshoutout <username>",
+                                source_user)
 
         elif line.startswith("!removeshoutout"):
             if len(line.split(" ")) == 2:
@@ -2798,33 +3172,42 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.config['auto_shoutout'].remove(remove_user.lower())
                     self.update_config()
 
-                    self.output_msg(c, "Removed user '" + remove_user + "' from auto-shoutout.", source_user)
+                    self.output_msg(
+                        c, "Removed user '" + remove_user +
+                        "' from auto-shoutout.", source_user)
                 else:
-                    self.output_msg(c, "User '" + remove_user + "' not found.", source_user)
+                    self.output_msg(c, "User '" + remove_user + "' not found.",
+                                    source_user)
             else:
-                self.output_msg(c, "Format: !removeshoutout <username>", source_user)
+                self.output_msg(c, "Format: !removeshoutout <username>",
+                                source_user)
 
         elif line.startswith("!whatis"):
             name = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
             name = name.replace(" ", "-")
 
             try:
-                m = drfujibot_pykemon.api.get(move=name,url=self.config['pokeapi_url'])
-                self.processCommand("!move " + name, c, source_user, prefix="Move: ")
+                m = drfujibot_pykemon.api.get(
+                    move=name, url=self.config['pokeapi_url'])
+                self.processCommand(
+                    "!move " + name, c, source_user, prefix="Move: ")
 
             except drfujibot_pykemon.exceptions.ResourceNotFoundError:
 
                 try:
-                    a = drfujibot_pykemon.api.get(ability=name,url=self.config['pokeapi_url'])
+                    a = drfujibot_pykemon.api.get(
+                        ability=name, url=self.config['pokeapi_url'])
 
-                    self.processCommand("!ability " + name, c, source_user, prefix="Ability: ")
+                    self.processCommand(
+                        "!ability " + name, c, source_user, prefix="Ability: ")
                 except drfujibot_pykemon.exceptions.ResourceNotFoundError:
-                    self.output_msg(c, "Could not find '" + name + "'", source_user)
+                    self.output_msg(c, "Could not find '" + name + "'",
+                                    source_user)
 
         elif line.startswith("!anagram"):
-            #word = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
+            # word = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
 
-            #if len(word) <= 10:
+            # if len(word) <= 10:
             #    #a = Anagram(word)
 
             #    #anagram_list = a.get_anagrams()
@@ -2843,11 +3226,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             #    #if len(output) > 240:
             #    #    output = output[:240]
             #    #    output = output.rsplit(", ", 1 )[0]
-            #else:
+            # else:
             #    output = "Word too long, max 10 characters"
 
-            #self.output_msg(c, output, source_user)
-            self.output_msg(c, "The !anagram command is currently not working. Use this instead: https://ingesanagram.appspot.com/", source_user)
+            # self.output_msg(c, output, source_user)
+            output = "The !anagram command is currently not working. "
+            output += "Use this instead: https://ingesanagram.appspot.com/"
+            self.output_msg(c, output, source_user)
 
         elif line.startswith("!event"):
             self.new_bet(c, line, source_user)
@@ -2855,32 +3240,46 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         elif line.startswith("!close"):
             if self.foundCoinFile:
                 if len(line.split(" ")) == 2:
-                    event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                    event_name = line.split(" ")[1].rstrip("\n").rstrip(
+                        "\r").lower()
 
                     if event_name in self.open_events.keys():
-                        self.closed_events[event_name] = self.open_events[event_name]
+                        self.closed_events[event_name] = self.open_events[
+                            event_name]
                         del self.open_events[event_name]
-                        self.output_msg(c, "Betting has closed for '" + event_name + "' event!", source_user)
+                        self.output_msg(
+                            c, "Betting has closed for '" + event_name +
+                            "' event!", source_user)
 
                         self.config['open_events'] = self.open_events
                         self.config['closed_events'] = self.closed_events
 
-                        if None != self.config['current_run'] and None != self.config['run_data']:
-                            if None != self.config['run_data'].get(self.config['current_run']):
-                                self.config['run_data'][self.config['current_run']]['closed_events'] = copy.deepcopy(self.closed_events)
+                        if self.config['current_run'] and self.config[
+                                'run_data']:
+                            if self.config['run_data'].get(
+                                    self.config['current_run']):
+                                self.config['run_data'][
+                                    self.config['current_run']][
+                                        'closed_events'] = copy.deepcopy(
+                                            self.closed_events)
 
                         self.update_config()
                     else:
-                        self.output_msg(c, "Event '" + event_name + "' not found", source_user)
+                        self.output_msg(c,
+                                        "Event '" + event_name + "' not found",
+                                        source_user)
                 else:
-                    self.output_msg(c, "Event name must not contain spaces", source_user)
+                    self.output_msg(c, "Event name must not contain spaces",
+                                    source_user)
             else:
-                self.output_msg(c, "Betting has not been configured", source_user)
+                self.output_msg(c, "Betting has not been configured",
+                                source_user)
 
         elif line.startswith("!cancel"):
             if self.foundCoinFile:
                 if len(line.split(" ")) == 2:
-                    event_name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                    event_name = line.split(" ")[1].rstrip("\n").rstrip(
+                        "\r").lower()
 
                     if event_name in self.open_events.keys():
                         wager = self.open_event_rewards[event_name]
@@ -2890,10 +3289,14 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                         del self.open_events[event_name]
                         del self.open_event_rewards[event_name]
-                        self.output_msg(c, "Event '" + event_name + "' has been cancelled, and all bets refunded", source_user)
+                        self.output_msg(
+                            c, "Event '" + event_name +
+                            "' has been cancelled, and all bets refunded",
+                            source_user)
 
                         self.config['open_events'] = self.open_events
-                        self.config['open_event_rewards'] = self.open_event_rewards
+                        self.config[
+                            'open_event_rewards'] = self.open_event_rewards
                         self.update_config()
                     elif event_name in self.closed_events.keys():
                         for user in self.closed_events[event_name].keys():
@@ -2903,17 +3306,25 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                         del self.closed_events[event_name]
                         del self.open_event_rewards[event_name]
-                        self.output_msg(c, "Event '" + event_name + "' has been cancelled, and all bets refunded", source_user)
+                        self.output_msg(
+                            c, "Event '" + event_name +
+                            "' has been cancelled, and all bets refunded",
+                            source_user)
 
                         self.config['closed_events'] = self.closed_events
-                        self.config['open_event_rewards'] = self.open_event_rewards
+                        self.config[
+                            'open_event_rewards'] = self.open_event_rewards
                         self.update_config()
                     else:
-                        self.output_msg(c, "Event '" + event_name + "' not found", source_user)
+                        self.output_msg(c,
+                                        "Event '" + event_name + "' not found",
+                                        source_user)
                 else:
-                    self.output_msg(c, "Event name must not contain spaces", source_user)
+                    self.output_msg(c, "Event name must not contain spaces",
+                                    source_user)
             else:
-                self.output_msg(c, "Betting has not been configured", source_user)
+                self.output_msg(c, "Betting has not been configured",
+                                source_user)
 
         elif line.startswith("!resolve"):
             self.resolve_bet(c, line, source_user)
@@ -2925,25 +3336,36 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     if len(self.open_events.keys()) == 1:
                         event_name = list(self.open_events.keys())[0]
                         coins = self.open_event_rewards[event_name]
-                        if guess in self.bet_config['events'][event_name]['outcomes'].keys():
+                        if guess in self.bet_config['events'][event_name][
+                                'outcomes'].keys():
                             with self.coin_lock:
-                                if None == self.coin_data['coins'].get(source_user):
-                                    # If it's a new user and the coin loop hasn't run yet
+                                if not self.coin_data['coins'].get(
+                                        source_user):
+                                    # If it's a new user and the coin loop
+                                    # hasn't run yet
                                     self.coin_data['coins'][source_user] = 0
 
                                 refund = 0
-                                previous = self.open_events[event_name].get(source_user)
-                                if None != previous:
+                                previous = self.open_events[event_name].get(
+                                    source_user)
+                                if previous:
+                                    # Does this work as it should?
+                                    # refund variable doesnt seem to be used
+                                    # anywhere
                                     refund = previous[1]
 
-                                self.open_events[event_name][source_user] = (guess, coins)
+                                self.open_events[event_name][source_user] = (
+                                    guess, coins)
                                 self.config['open_events'] = self.open_events
                                 self.update_config()
                         else:
-                            self.output_msg(c, "@" + source_user + " Not a valid outcome!", source_user)
+                            self.output_msg(
+                                c, "@" + source_user + " Not a valid outcome!",
+                                source_user)
                     else:
-                        self.output_msg(c, "Could not find active event", source_user)
-                except:
+                        self.output_msg(c, "Could not find active event",
+                                        source_user)
+                except Exception:
                     self.output_msg(c, "Format: !bet <guess>", source_user)
             else:
                 self.output_msg(c, "Format: !bet <guess>", source_user)
@@ -2953,29 +3375,34 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 now = datetime.datetime.now()
                 daily_available = False
                 if self.coin_data['last_daily_bonus'].get(source_user):
-                    last = datetime.datetime.fromtimestamp(self.coin_data['last_daily_bonus'][source_user])
+                    last = datetime.datetime.fromtimestamp(
+                        self.coin_data['last_daily_bonus'][source_user])
                 else:
                     daily_available = True
 
                 output = ""
                 timetoreset = None
 
-                #if daily isn't already available, calculate
-                if daily_available == False:
-                    #if the daily mode is based on hours passed:
+                # if daily isn't already available, calculate
+                if not daily_available:
+                    # if the daily mode is based on hours passed:
                     if self.daily_type == "hours":
-                        #when last.hour > daily_hours, timetoreset.days will be negative
-                        timetoreset = datetime.timedelta(hours=self.daily_hours) - datetime.timedelta(hours=last.hour, minutes=last.minute)
+                        # when last.hour > daily_hours
+                        # timetoreset.days will be negative
+                        timetoreset = (datetime.timedelta(
+                            hours=self.daily_hours) - datetime.timedelta(
+                                hours=last.hour, minutes=last.minute))
                         if timetoreset.days < 0:
                             daily_available = True
 
-                    #or if the daily mode is based on a certain time:
+                    # or if the daily mode is based on a certain time:
                     elif self.daily_type == "time":
-                        if now.date != last.date and now.hour >= self.daily_time:
+                        if now.date != last.date \
+                                and now.hour >= self.daily_time:
                             daily_available = True
 
-                #give the coins
-                if daily_available == True:
+                # give the coins
+                if daily_available:
                     more_coins = random.randint(0, 100)
 
                     crit = random.randint(1, 16)
@@ -2983,7 +3410,9 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     if 1 == crit and 0 != more_coins:
                         more_coins *= 2
 
-                    output = "@" + source_user + " You received a daily bonus of " + str(more_coins) + " coins!"
+                    output = (
+                        "@" + source_user + " You received a daily bonus of " +
+                        str(more_coins) + " coins!")
 
                     if 1 == crit and 0 != more_coins:
                         output += " A critical hit!"
@@ -2996,19 +3425,22 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.update_config()
 
                     with self.coin_lock:
-                        if None == self.coin_data['coins'].get(source_user):
-                            # If it's a new user and the coin loop hasn't run yet
+                        if not self.coin_data['coins'].get(source_user):
+                            # If it's a new user and the coin loop
+                            # hasn't run yet
                             self.coin_data['coins'][source_user] = 0
                         self.coin_data['coins'][source_user] += more_coins
                         self.update_coin_data()
-                #tell user when they can get their coins. diff2 assigned if they cannot get their coins yet depending on daily type.
+                # tell user when they can get their coins.
+                # diff2 assigned if they cannot get their coins yet
+                # depending on daily type.
                 else:
                     diff = now - last
                     diff2 = datetime.timedelta(hours=24) - diff
                     output = "@" + source_user
                     output += " You can receive another daily bonus in "
-                    output += str(diff2.seconds//3600) + " hours and "
-                    output += str((diff2.seconds//60)%60) + " minutes"
+                    output += str(diff2.seconds // 3600) + " hours and "
+                    output += str((diff2.seconds // 60) % 60) + " minutes"
 
                 self.output_msg(c, output, source_user)
 
@@ -3022,15 +3454,21 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         self.deaths = 0
                         self.config['deaths'] = 0
 
-                        if None != self.config['current_run'] and None != self.config['run_data']:
-                            if None != self.config['run_data'].get(self.config['current_run']):
-                                self.config['run_data'][self.config['current_run']]['deaths'] = self.deaths
+                        if self.config['current_run'] and self.config[
+                                'run_data']:
+                            if self.config['run_data'].get(
+                                    self.config['current_run']):
+                                self.config['run_data'][self.config[
+                                    'current_run']]['deaths'] = self.deaths
 
                         self.update_config()
 
                         try:
-                            num_badges = int(line.split(" ")[1].rstrip("\n").rstrip("\r").lower())
-                            message = line.split(" ", 2)[2].rstrip("\n").rstrip("\r")
+                            num_badges = int(
+                                line.split(" ")[1].rstrip("\n").rstrip(
+                                    "\r").lower())
+                            message = line.split(
+                                " ", 2)[2].rstrip("\n").rstrip("\r")
 
                             # Resolve badge bets
                             command = "!resolve badges " + str(num_badges)
@@ -3040,55 +3478,74 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             command = "!event badges 10000"
                             self.new_bet(c, command, source_user)
 
-                            if None != self.config['current_run'] and None != self.config['run_data']:
-                                if None != self.config['run_data'].get(self.config['current_run']):
-                                    self.config['run_data'][self.config['current_run']]['!lastrun'] = message
-                                    self.config['run_data'][self.config['current_run']]['attempt'] += 1
-                            if None != self.config['extra_commands'].get('!lastrun'):
-                                self.config['extra_commands']['!lastrun'] = message
+                            if self.config['current_run'] and self.config[
+                                    'run_data']:
+                                if self.config['run_data'].get(
+                                        self.config['current_run']):
+                                    self.config['run_data'][self.config[
+                                        'current_run']]['!lastrun'] = message
+                                    self.config['run_data'][self.config[
+                                        'current_run']]['attempt'] += 1
+                            if self.config['extra_commands'].get('!lastrun'):
+                                self.config['extra_commands'][
+                                    '!lastrun'] = message
                             self.update_config()
 
-                            self.output_msg(c, "Rip run BibleThump", source_user)
+                            self.output_msg(c, "Rip run BibleThump",
+                                            source_user)
 
                         except Exception as e:
                             print("Exception: " + str(e))
                     else:
-                        self.output_msg(c, "Format: !riprun <num_badges_obtained> <new_!lastrun_message>", source_user)
+                        output = "Format: !riprun <num_badges_obtained>"
+                        output += " <new_!lastrun_message>"
+                        self.output_msg(c, output, source_user)
                 else:
-                    self.output_msg(c, "Betting has not been configured", source_user)
+                    self.output_msg(c, "Betting has not been configured",
+                                    source_user)
 
         elif line.startswith("!notify "):
             # Streamer only (or me nathanPepe)
-            if "pokemonchallenges" == self.username.lower() or "pokemonrealtime" == source_user.lower():
+            if "pokemonchallenges" == self.username.lower(
+            ) or "pokemonrealtime" == source_user.lower():
                 message = line.split(" ", 1)[1].rstrip("\n").rstrip("\r")
                 timestamp = int(time.time())
                 self.pcce["notification"] = str(timestamp) + ":" + message
                 self.update_pcce()
-                self.output_msg(c, "Notification sent to PCCE users", source_user)
+                self.output_msg(c, "Notification sent to PCCE users",
+                                source_user)
 
         elif line.startswith("!resetcoins"):
-            if "pokemonchallenges" == self.username.lower() or "pokemodrealtime" == source_user.lower() or "moshjarcus" == source_user.lower():
+            if "pokemonchallenges" == self.username.lower(
+            ) or "pokemodrealtime" == source_user.lower(
+            ) or "moshjarcus" == source_user.lower():
                 with self.coin_lock:
                     current_date = datetime.date.today().strftime("%Y-%m-%d")
-                    shutil.copyfile("PokemonChallenges_coins.json", "PokemonChallenges_coins_" + current_date + ".json")
+                    shutil.copyfile(
+                        "PokemonChallenges_coins.json",
+                        "PokemonChallenges_coins_" + current_date + ".json")
                     self.coin_data['coins'] = {}
                     self.coin_data['last_daily_bonus'] = {}
                     self.update_coin_data()
 
-                    self.output_msg(c, "Backup created (compressed with Middle-Out) - ALL COINS HAVE BEEN RESET!", source_user)
+                    output = "Backup created (compressed with Middle-Out)"
+                    output += " - ALL COINS HAVE BEEN RESET!"
+                    self.output_msg(c, output, source_user)
 
         elif line.startswith("!leaderboard"):
-            if "pokemonchallenges" == self.username.lower() or "moshjarcus" == self.username.lower():
+            if "pokemonchallenges" == self.username.lower(
+            ) or "moshjarcus" == self.username.lower():
 
                 with open(self.username + '_coins.json', 'r') as coin_file:
                     coin_info = json.load(coin_file)
                     coins = coin_info.get('coins')
-                    if None != coins:
-                        sorted_data = sorted(coins.items(), key=operator.itemgetter(1))
+                    if coins:
+                        sorted_data = sorted(
+                            coins.items(), key=operator.itemgetter(1))
                         i = 0
                         output = "Leaderboard: "
                         for e in reversed(sorted_data):
-                            #print(e[0] + " - " + str(e[1]))
+                            # print(e[0] + " - " + str(e[1]))
                             output += e[0] + "(" + str(int(e[1])) + ") "
                             if i >= 2:
                                 break
@@ -3103,7 +3560,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                 self.output_msg(c, output, source_user)
             else:
-                self.output_msg(c, 'The !balance command has returned to whisper-only mode! Type "/w DrFujiBot !balance" to see your coins!', source_user)
+                output = (
+                    'The !balance command has returned to whisper-only mode! '
+                    'Type "/w DrFujiBot !balance" to see your coins!')
+                self.output_msg(c, output, source_user)
 
         elif line.startswith("!credit"):
             if len(line.split(" ")) >= 3:
@@ -3115,19 +3575,19 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     coins = int(arg1)
                     user = arg2
                     success = True
-                except:
+                except Exception:
                     pass
 
                 try:
                     coins = int(arg2)
                     user = arg1
                     success = True
-                except:
+                except Exception:
                     pass
 
                 if success:
                     with self.coin_lock:
-                        if None == self.coin_data['coins'].get(user):
+                        if not self.coin_data['coins'].get(user):
                             self.coin_data['coins'][user] = coins
                         else:
                             self.coin_data['coins'][user] += coins
@@ -3137,15 +3597,25 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     self.output_msg(c, output, source_user)
                 else:
-                    self.output_msg(c, "Format: !credit <user> <coins>", source_user)
+                    self.output_msg(c, "Format: !credit <user> <coins>",
+                                    source_user)
 
         elif line.startswith("!coins"):
             if self.whisperMode:
 
-                output1 = "You're earning coins while sitting in chat! Make sure to use the !daily command every 24 hours to get a daily coin reward! "
-                output2 = "You can check your savings at any time by using the !balance command. "
-                output3 = "A mod will start a betting event in chat, and you can joing by typing !bet <outcome> after the event has started! "
-                output4 = "For example: '!bet 1' to bet 1 death in a gym battle. For a full list of betting commands and what they do, click here: https://goo.gl/i8slEk"
+                output1 = (
+                    "You're earning coins while sitting in chat! "
+                    "Make sure to use the !daily command every 24 hours to "
+                    "get a daily coin reward! ")
+                output2 = ("You can check your savings at any time by using "
+                           "the !balance command. ")
+                output3 = ("A mod will start a betting event in chat, "
+                           "and you can joing by typing !bet <outcome> "
+                           "after the event has started! ")
+                output4 = (
+                    "For example: '!bet 1' to bet 1 death in a gym battle. "
+                    "For a full list of betting commands and what they do, "
+                    "click here: https://goo.gl/i8slEk")
                 output5 = get_coin_balances(source_user)
 
                 self.output_msg(c, output1, source_user)
@@ -3158,42 +3628,58 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 time.sleep(1)
                 self.output_msg(c, output5, source_user)
             else:
-                output = "You're currently earning coins and can use them to bet on what might happen during the stream! "
-                output += "Whisper !balance to DrFujiBot to see your current savings!"
+                output = ("You're currently earning coins and can use them to "
+                          "bet on what might happen during the stream! ")
+                output += ("Whisper !balance to DrFujiBot to see your "
+                           "current savings!")
                 self.output_msg(c, output, source_user)
 
         elif line.startswith("!addcom"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 if len(line.split(" ")) >= 3:
-                    command = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                    command = line.split(" ")[1].rstrip("\n").rstrip(
+                        "\r").lower()
                     message = line.split(" ", 2)[2].rstrip("\n").rstrip("\r")
 
                     if command.startswith("!"):
                         if not message.startswith("!"):
-                            if False == self.is_valid_command(command):
-                                if None == self.config['extra_commands'].get(command):
+                            if not self.is_valid_command(command):
+                                if not self.config['extra_commands'].get(
+                                        command):
                                     if self.is_setrun_command(command):
-                                        self.set_current_run_data(command, message)
+                                        self.set_current_run_data(
+                                            command, message)
                                     else:
-                                        self.config['extra_commands'][command] = message
+                                        self.config['extra_commands'][
+                                            command] = message
                                     self.update_config()
 
-                                    self.output_msg(c, command + " command added", source_user)
+                                    self.output_msg(c,
+                                                    command + " command added",
+                                                    source_user)
                                 else:
-                                    self.output_msg(c, "Command already exists", source_user)
+                                    self.output_msg(c,
+                                                    "Command already exists",
+                                                    source_user)
                             else:
-                                self.output_msg(c, "Cannot override existing DrFujiBot command", source_user)
+                                output = ("Cannot override existing "
+                                          "DrFujiBot command")
+                                self.output_msg(c, output, source_user)
                         else:
-                            self.output_msg(c, "Message cannot start with !", source_user)
+                            self.output_msg(c, "Message cannot start with !",
+                                            source_user)
                     else:
-                        self.output_msg(c, "Command must start with !", source_user)
+                        self.output_msg(c, "Command must start with !",
+                                        source_user)
                 else:
-                    self.output_msg(c, "Format: !addcom <!command> <message>", source_user)
+                    self.output_msg(c, "Format: !addcom <!command> <message>",
+                                    source_user)
 
         elif line.startswith("!editcom"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 if len(line.split(" ")) >= 3:
-                    command = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                    command = line.split(" ")[1].rstrip("\n").rstrip(
+                        "\r").lower()
                     message = line.split(" ", 2)[2].rstrip("\n").rstrip("\r")
 
                     if command.startswith("!"):
@@ -3204,50 +3690,64 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 exists = True
                             else:
                                 # Not using !setrun
-                                if None != self.config['extra_commands'].get(command):
+                                if self.config['extra_commands'].get(command):
                                     exists = True
 
                             if exists:
                                 if self.is_setrun_command(command):
                                     self.set_current_run_data(command, message)
                                 else:
-                                    self.config['extra_commands'][command] = message
+                                    self.config['extra_commands'][
+                                        command] = message
                                 self.update_config()
 
-                                self.output_msg(c, command + " command updated", source_user)
+                                self.output_msg(c,
+                                                command + " command updated",
+                                                source_user)
                             else:
-                                self.output_msg(c, "Command '" + command + "' not found", source_user)
+                                self.output_msg(
+                                    c, "Command '" + command + "' not found",
+                                    source_user)
                         else:
-                            self.output_msg(c, "Message cannot start with !", source_user)
+                            self.output_msg(c, "Message cannot start with !",
+                                            source_user)
                     else:
-                        self.output_msg(c, "Command must start with !", source_user)
+                        self.output_msg(c, "Command must start with !",
+                                        source_user)
                 else:
-                    self.output_msg(c, "Format: !editcom <!command> <message>", source_user)
+                    self.output_msg(c, "Format: !editcom <!command> <message>",
+                                    source_user)
 
         elif line.startswith("!delcom"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 if len(line.split(" ")) == 2:
-                    command = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                    command = line.split(" ")[1].rstrip("\n").rstrip(
+                        "\r").lower()
 
-                    if None != self.config['extra_commands'].get(command):
+                    if self.config['extra_commands'].get(command):
                         del self.config['extra_commands'][command]
                         self.update_config()
 
-                        self.output_msg(c, command + " command deleted", source_user)
+                        self.output_msg(c, command + " command deleted",
+                                        source_user)
                     else:
-                        self.output_msg(c, "Command '" + command + "' not found", source_user)
+                        self.output_msg(c,
+                                        "Command '" + command + "' not found",
+                                        source_user)
                 else:
-                    self.output_msg(c, "Format: !delcom <!command>", source_user)
+                    self.output_msg(c, "Format: !delcom <!command>",
+                                    source_user)
 
         elif line.startswith("!so ") or line.startswith("!shoutout"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 streamer = ""
                 if len(line.split(" ")) >= 2:
                     streamer = line.split(" ")[1].rstrip("\n").rstrip("\r")
                 else:
                     streamer = self.username
 
-                self.do_shoutout(c, streamer, self.config['shoutout_messages'], 0, source_user)
+                self.do_shoutout(c, streamer, self.config['shoutout_messages'],
+                                 0, source_user)
 
         elif line.startswith("!raid"):
             # Streamer only
@@ -3256,7 +3756,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     streamer = line.split(" ")[1].rstrip("\n").rstrip("\r")
 
                     output = self.config.get('raid_message')
-                    if None != output:
+                    if output:
                         for i in range(5):
                             self.output_msg(c, output, source_user, 0)
 
@@ -3265,10 +3765,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         self.output_msg(c, output, source_user, 0)
 
         elif line.startswith("!uptime"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 output = ""
                 CLIENT_ID = get_fuji_config_value('twitch_client_id')
-                STREAM_INFO_URL = 'https://api.twitch.tv/kraken/streams?channel=' + self.username
+                STREAM_INFO_URL = (
+                    'https://api.twitch.tv/kraken/streams?channel=' +
+                    self.username)
                 try:
                     request = urllib.request.Request(STREAM_INFO_URL)
                     request.add_header('Client-ID', CLIENT_ID)
@@ -3281,11 +3783,11 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         diff = now - live_datetime
 
                         output = "Uptime: "
-                        output += str((diff.seconds//3600)) + " hours and "
-                        output += str((diff.seconds//60)%60) + " minutes"
+                        output += str((diff.seconds // 3600)) + " hours and "
+                        output += str((diff.seconds // 60) % 60) + " minutes"
                     else:
                         output = "This channel is offline"
-                except:
+                except Exception:
                     print("Unexpected error: " + str(sys.exc_info()[0]))
                     output = "Error getting uptime from Twitch server"
 
@@ -3294,26 +3796,32 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
         elif line.startswith("!song"):
             lastfm_user = self.config.get('lastfm_user')
             LASTFM_API_KEY = get_fuji_config_value('lastfm_api_key')
-            if None != lastfm_user: 
-                lastfm_url = "http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user="
+            if lastfm_user:
+                lastfm_url = ("http://ws.audioscrobbler.com"
+                              "/2.0/?method=user.getrecenttracks&user=")
                 lastfm_url += lastfm_user
                 lastfm_url += "&api_key="
                 lastfm_url += LASTFM_API_KEY
                 lastfm_url += "&format=json"
 
                 try:
-                    response = urllib.request.urlopen(lastfm_url).read().decode('UTF-8')
+                    response = urllib.request.urlopen(
+                        lastfm_url).read().decode('UTF-8')
                     lastfm_data = json.loads(response)
 
-                    #for track in lastfm_data['recenttracks']['track']:
-                    #    print(track['name'] + " - " + track['artist']['#text'])
+                    # for track in lastfm_data['recenttracks']['track']:
+                    #    print(
+                    #         track['name'] + " - " + track['artist']['#text'])
 
                     most_recent_track = lastfm_data['recenttracks']['track'][0]
-                    output = most_recent_track['name'] + " - " + most_recent_track['artist']['#text']
+                    output = most_recent_track[
+                        'name'] + " - " + most_recent_track['artist']['#text']
 
                     spotify_user = self.config.get('spotify_user')
-                    if None != spotify_user:
-                        output += " | Check out my playlists here: https://open.spotify.com/user/" + spotify_user
+                    if spotify_user:
+                        output += (
+                            " | Check out my playlists here: "
+                            "https://open.spotify.com/user/" + spotify_user)
 
                     self.output_msg(c, output, source_user)
 
@@ -3321,7 +3829,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     print("!song exception: " + str(e))
 
         elif line.startswith("!quote"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 if len(self.config['quotes'].keys()) > 0:
                     # Cooldown
                     last_output = self.extra_command_cooldown.get("!quote")
@@ -3329,7 +3837,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     should_output = False
                     current_time = datetime.datetime.now()
 
-                    if None == last_output:
+                    if not last_output:
                         should_output = True
                     else:
                         diff = current_time - last_output
@@ -3345,12 +3853,13 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             key = line.split(" ")[1]
 
                             try:
-                                key_int = int(key)
+                                int(key)
                                 is_int = True
-                            except:
+                            except Exception:
                                 pass
                         else:
-                            key = random.choice(list(self.config['quotes'].keys()))
+                            key = random.choice(
+                                list(self.config['quotes'].keys()))
                             is_int = True
 
                         if is_int:
@@ -3359,9 +3868,14 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                 quote += self.config['quotes'][key]
                                 quote += '" -' + self.username
                             else:
-                                self.output_msg(c, "Quote #" + key + " not found", source_user)
+                                self.output_msg(c,
+                                                "Quote #" + key + " not found",
+                                                source_user)
                         else:
-                            matches = [q for q in self.config['quotes'].values() if key.lower() in q.lower()]
+                            matches = [
+                                q for q in self.config['quotes'].values()
+                                if key.lower() in q.lower()
+                            ]
                             if len(matches) > 0:
                                 selected_match = random.choice(matches)
                                 for k, v in self.config['quotes'].items():
@@ -3370,7 +3884,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                         quote += self.config['quotes'][k]
                                         quote += '" -' + self.username
                             else:
-                                self.output_msg(c, "Quote containing '" + key + "' not found", source_user)
+                                self.output_msg(
+                                    c,
+                                    "Quote containing '" + key + "' not found",
+                                    source_user)
 
                         if len(quote) > 0:
                             self.output_msg(c, quote, source_user)
@@ -3381,15 +3898,16 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.output_msg(c, "No quotes available", source_user)
 
         elif line.startswith("!latestquote"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 if len(self.config['quotes'].keys()) > 0:
                     # Cooldown
-                    last_output = self.extra_command_cooldown.get("!latestquote")
+                    last_output = self.extra_command_cooldown.get(
+                        "!latestquote")
 
                     should_output = False
                     current_time = datetime.datetime.now()
 
-                    if None == last_output:
+                    if not last_output:
                         should_output = True
                     else:
                         diff = current_time - last_output
@@ -3411,18 +3929,20 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                             quote += self.config['quotes'][key]
                             quote += '" -' + self.username
                         else:
-                            self.output_msg(c, "Quote #" + key + " not found", source_user)
+                            self.output_msg(c, "Quote #" + key + " not found",
+                                            source_user)
 
                         if len(quote) > 0:
                             self.output_msg(c, quote, source_user)
 
                         # Update last output time
-                        self.extra_command_cooldown["!latestquote"] = current_time
+                        self.extra_command_cooldown[
+                            "!latestquote"] = current_time
                 else:
                     self.output_msg(c, "No quotes available", source_user)
 
         elif line.startswith("!addquote"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 quote = line.split(" ", 1)[1].rstrip("\n").rstrip("\r")
 
                 key = 1
@@ -3435,17 +3955,20 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 self.output_msg(c, "Quote #" + key + " added", source_user)
 
         elif line.startswith("!delquote"):
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 if len(line.split(" ")) == 2:
                     quoteNum = line.split(" ")[1].rstrip("\n").rstrip("\r")
                     if self.config['quotes'].get(quoteNum):
                         del self.config['quotes'][quoteNum]
                         self.update_config()
-                        self.output_msg(c, "Quote #" + quoteNum + " deleted", source_user)
+                        self.output_msg(c, "Quote #" + quoteNum + " deleted",
+                                        source_user)
                     else:
-                        self.output_msg(c, "Quote #" + quoteNum + " not found", source_user)
+                        self.output_msg(c, "Quote #" + quoteNum + " not found",
+                                        source_user)
                 else:
-                    self.output_msg(c, "Format: !delquote <quote number>", source_user)
+                    self.output_msg(c, "Format: !delquote <quote number>",
+                                    source_user)
 
         elif line.startswith("!elo"):
             if len(line.split(" ")) == 2:
@@ -3454,7 +3977,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 ladder = "gen7ou"
             output = ""
 
-            result = requests.get("https://pokemonshowdown.com/users/" + self.username)
+            result = requests.get("https://pokemonshowdown.com/users/" +
+                                  self.username)
             if result.status_code == 200:
                 soup = BeautifulSoup(result.content)
                 rows = soup.find_all("tr")
@@ -3463,7 +3987,8 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     cells = row.find_all("td")
                     if len(cells) >= 2:
                         if ladder == cells[0].text:
-                            output = "Showdown '" + ladder + "' ELO: " + cells[1].text
+                            output = "Showdown '" + ladder + "' ELO: " + cells[
+                                1].text
                             break
 
             if len(output) == 0:
@@ -3475,10 +4000,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             if len(line.split(" ")) == 2:
                 pkmn = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
 
-                one_month = 60 * 60 * 24 * 30
-                #requests_cache.install_cache("smogon", backend='sqlite', expire_after=one_month)
+                # This one_month variable is not used
+                # Looks like it belongs to the commented out part
 
-                result = requests.get("http://www.smogon.com/dex/sm/pokemon/" + pkmn)
+                one_month = 60 * 60 * 24 * 30
+                # requests_cache.install_cache(
+                #   "smogon", backend='sqlite', expire_after=one_month)
+
+                result = requests.get("http://www.smogon.com/dex/sm/pokemon/" +
+                                      pkmn)
                 if result.status_code == 200:
                     data_re = re.compile(r'dexSettings = (\{.*\})')
                     text_content = result.content.decode('utf-8')
@@ -3499,7 +4029,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                     tier = strat["format"]
                                     for moveset in movesets:
                                         output = "(" + tier + ") "
-                                        output += moveset["name"] 
+                                        output += moveset["name"]
                                         output += ": "
                                         for moveslot in moveset["moveslots"]:
                                             output += moveslot[0]
@@ -3509,19 +4039,22 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                                         output += moveset["abilities"][0]
                                         output += " - "
                                         output += moveset["items"][0]
-                                        self.output_msg(c, output, source_user, 0)
+                                        self.output_msg(
+                                            c, output, source_user, 0)
                                 break
 
                     if len(output) == 0:
-                        self.output_msg(c, "Could not find Smogon information for '" + pkmn + "'", source_user)
+                        self.output_msg(
+                            c, "Could not find Smogon information for '" + pkmn
+                            + "'", source_user)
 
-                #requests_cache.uninstall_cache()
+                # requests_cache.uninstall_cache()
             else:
                 self.output_msg(c, "Format: !smogon <pokemon>", source_user)
 
         elif line.startswith("!chatbattle"):
             # Streamer only
-            #if source_user.lower() == self.username.lower():
+            # if source_user.lower() == self.username.lower():
             if source_user.lower() == "drfujibot":
                 try:
                     server_address = '/tmp/fuji_to_node.sock'
@@ -3550,11 +4083,15 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     if response:
                         self.battle_room = response
-                        self.output_msg(c, "Click here to spectate: http://play.pokemonshowdown.com/" + response, source_user)
+                        output = (
+                            "Click here to spectate: "
+                            "http://play.pokemonshowdown.com/" + response)
+                        self.output_msg(c, output, source_user)
                     else:
                         print("No response")
-                except:
-                    self.output_msg(c, "Error, Showdown component not running", source_user)
+                except Exception:
+                    self.output_msg(c, "Error, Showdown component not running",
+                                    source_user)
 
         elif line.startswith("!forfeit"):
             # Streamer only
@@ -3562,28 +4099,36 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 if len(self.battle_room) > 0:
                     try:
                         server_address = '/tmp/fuji_to_node.sock'
-                        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                        sock = socket.socket(socket.AF_UNIX,
+                                             socket.SOCK_STREAM)
                         sock.connect(server_address)
                         node_command = ".leave " + self.battle_room
-                        msg = json.dumps({"line": node_command}).encode('UTF-8')
+                        msg = json.dumps({
+                            "line": node_command
+                        }).encode('UTF-8')
                         sock.send(msg)
                         sock.send(b"\r\n")
                         sock.close()
 
-                        self.output_msg(c, "Forfeited " + self.battle_room, source_user)
+                        self.output_msg(c, "Forfeited " + self.battle_room,
+                                        source_user)
                         self.battle_room = ""
-                    except:
-                        self.output_msg(c, "Error, Showdown component not running", source_user)
+                    except Exception:
+                        self.output_msg(
+                            c, "Error, Showdown component not running",
+                            source_user)
                 else:
-                    self.output_msg(c, "Not currently in a battle", source_user)
+                    self.output_msg(c, "Not currently in a battle",
+                                    source_user)
 
         elif line.startswith("!setrun"):
             if len(line.split(" ")) >= 2:
-                run_name = line.split(" ", 1)[1].rstrip("\n").rstrip("\r").lower()
+                run_name = line.split(" ",
+                                      1)[1].rstrip("\n").rstrip("\r").lower()
 
                 self.config['current_run'] = run_name
 
-                if None == self.config['run_data'].get(run_name):
+                if not self.config['run_data'].get(run_name):
                     # Run doesn't exist yet, so create it
                     self.config['run_data'][run_name] = {}
                     self.config['run_data'][run_name]['game'] = self.game
@@ -3592,59 +4137,75 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     self.config['run_data'][run_name]['attempt'] = 1
 
                     # Clear closed_events, since this is a new run.
-                    # Old closed_events should already be saved for previous run.
+                    # Old closed_events should already be
+                    # saved for previous run.
                     self.closed_events = {}
                     self.config['closed_events'] = {}
                 else:
                     # Run exists
-                    if None != self.config['run_data'][run_name].get('game'):
+                    if self.config['run_data'][run_name].get('game'):
                         # Get current game from run data, if it exists
-                        self.game = self.config['run_data'][run_name].get('game')
+                        self.game = self.config['run_data'][run_name].get(
+                            'game')
                     # Sync run data game, in case it didn't exist
                     self.config['run_data'][run_name]['game'] = self.game
                     # Set config file game
                     self.config['games'][self.username] = self.game
 
-                    if None != self.config['run_data'][run_name].get('deaths'):
+                    if self.config['run_data'][run_name].get('deaths'):
                         # Get current deaths from run data, if it exists
-                        self.deaths = self.config['run_data'][run_name].get('deaths')
+                        self.deaths = self.config['run_data'][run_name].get(
+                            'deaths')
                     # Sync run data deaths, in case it didn't exist
                     self.config['run_data'][run_name]['deaths'] = self.deaths
                     # Set config file deaths
                     self.config['deaths'] = self.deaths
 
-                    if None != self.config['run_data'][run_name].get('closed_events'):
+                    if self.config['run_data'][run_name].get('closed_events'):
                         # Get current closed_events from run data, if it exists
-                        self.closed_events = copy.deepcopy(self.config['run_data'][run_name].get('closed_events'))
+                        self.closed_events = copy.deepcopy(
+                            self.config['run_data'][run_name].get(
+                                'closed_events'))
                     # Sync run data closed_events, in case it didn't exist
-                    self.config['run_data'][run_name]['closed_events'] = copy.deepcopy(self.closed_events)
+                    self.config['run_data'][run_name][
+                        'closed_events'] = copy.deepcopy(self.closed_events)
                     # Set config file closed_events
-                    self.config['closed_events'] = copy.deepcopy(self.closed_events)
+                    self.config['closed_events'] = copy.deepcopy(
+                        self.closed_events)
 
                 self.update_config()
 
-                self.output_msg(c, "Set current run to '" + run_name + "'", source_user)
+                self.output_msg(c, "Set current run to '" + run_name + "'",
+                                source_user)
             else:
                 self.output_msg(c, "Format: !setrun <run name>", source_user)
 
         elif line.startswith("!combo"):
             if self.config.get('highest_combo'):
-                self.output_msg(c, "Highest combo: " + str(self.config['highest_combo'][0]) + "x ( " + self.config['highest_combo'][1] + " )", source_user)
+                self.output_msg(
+                    c, "Highest combo: " + str(self.config['highest_combo'][0])
+                    + "x ( " + self.config['highest_combo'][1] + " )",
+                    source_user)
 
         elif line.startswith("!attempt"):
-            if None != self.config.get('run_data') and None != self.config.get('current_run'):
-                if None != self.config['run_data'][self.config['current_run']].get('attempt'):
-                    attempt = self.config['run_data'][self.config['current_run']].get('attempt')
-                    self.output_msg(c, "This is attempt #" + str(attempt), source_user)
+            if self.config.get('run_data') and self.config.get('current_run'):
+                if self.config['run_data'][self.config['current_run']].get(
+                        'attempt'):
+                    attempt = self.config['run_data'][
+                        self.config['current_run']].get('attempt')
+                    self.output_msg(c, "This is attempt #" + str(attempt),
+                                    source_user)
 
         elif line.startswith("!swearjar"):
             if len(line.split(" ")) >= 2:
                 try:
-                    swearjar = int(line.split(" ", 1)[1].rstrip("\n").rstrip("\r"))
+                    swearjar = int(
+                        line.split(" ", 1)[1].rstrip("\n").rstrip("\r"))
                     self.config['swearjar'] = swearjar
                     self.update_config()
-                    self.output_msg(c, "Swear jar: " + str(swearjar), source_user)
-                except:
+                    self.output_msg(c, "Swear jar: " + str(swearjar),
+                                    source_user)
+                except Exception:
                     self.output_msg(c, "Invalid swearjar value", source_user)
             else:
                 swearjar = self.config.get('swearjar')
@@ -3676,7 +4237,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     summary = nuzlocke_re.sub(replacement, summary)
                     self.output_msg(c, summary, source_user)
                     success = True
-                except:
+                except Exception:
                     pass
 
         elif line.startswith("!hiddenpower"):
@@ -3684,14 +4245,22 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
             tokens = line.split(" ")
             if len(tokens) == 7:
                 try:
-                    unused, value_a, value_b, value_c, value_e, value_f, value_d = [i for i in tokens]
+                    u, value_a, value_b, value_c, value_e, value_f, value_d = [
+                        i for i in tokens
+                    ]
 
-                    value_u = 1 if int(value_a) % 4 == 2 or int(value_a) % 4 == 3 else 0
-                    value_v = 1 if int(value_b) % 4 == 2 or int(value_b) % 4 == 3 else 0
-                    value_w = 1 if int(value_c) % 4 == 2 or int(value_c) % 4 == 3 else 0
-                    value_x = 1 if int(value_d) % 4 == 2 or int(value_d) % 4 == 3 else 0
-                    value_y = 1 if int(value_e) % 4 == 2 or int(value_e) % 4 == 3 else 0
-                    value_z = 1 if int(value_f) % 4 == 2 or int(value_f) % 4 == 3 else 0
+                    value_u = 1 if int(value_a) % 4 == 2 or int(
+                        value_a) % 4 == 3 else 0
+                    value_v = 1 if int(value_b) % 4 == 2 or int(
+                        value_b) % 4 == 3 else 0
+                    value_w = 1 if int(value_c) % 4 == 2 or int(
+                        value_c) % 4 == 3 else 0
+                    value_x = 1 if int(value_d) % 4 == 2 or int(
+                        value_d) % 4 == 3 else 0
+                    value_y = 1 if int(value_e) % 4 == 2 or int(
+                        value_e) % 4 == 3 else 0
+                    value_z = 1 if int(value_f) % 4 == 2 or int(
+                        value_f) % 4 == 3 else 0
 
                     value_a = int(value_a) % 2
                     value_b = int(value_b) % 2
@@ -3700,24 +4269,46 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                     value_e = int(value_e) % 2
                     value_f = int(value_f) % 2
 
-                    hidden_power_types = ["Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost", "Steel", "Fire", "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark"]
-                    hidden_power_type_index = int( math.floor( ( ( value_a + (2 * value_b) + (4 * value_c) + (8 * value_d) + (16 * value_e) + (32 * value_f) ) * 15 ) / 63 ) )
-                    hidden_power_base_power = int( math.floor( ( ( ( value_u + (2 * value_v) + (4 * value_w) + (8 * value_x) + (16 * value_y) + (32 * value_z) ) * 40 ) / 63 ) + 30 ) )
-                    self.output_msg(c, "The Pokemon's Hidden Power type is " + hidden_power_types[ hidden_power_type_index ] + ". In Generations 3 to 5, its Base Power is " + str(hidden_power_base_power) + ".", source_user)
+                    hidden_power_types = [
+                        "Fighting", "Flying", "Poison", "Ground", "Rock",
+                        "Bug", "Ghost", "Steel", "Fire", "Water", "Grass",
+                        "Electric", "Psychic", "Ice", "Dragon", "Dark"
+                    ]
+                    hidden_power_type_index = int(
+                        math.floor(((value_a + (2 * value_b) + (4 * value_c) +
+                                     (8 * value_d) + (16 * value_e) +
+                                     (32 * value_f)) * 15) / 63))
+                    hidden_power_base_power = int(
+                        math.floor((((value_u + (2 * value_v) + (4 * value_w) +
+                                      (8 * value_x) + (16 * value_y) +
+                                      (32 * value_z)) * 40) / 63) + 30))
+                    self.output_msg(
+                        c, "The Pokemon's Hidden Power type is " +
+                        hidden_power_types[hidden_power_type_index] +
+                        ". In Generations 3 to 5, its Base Power is " +
+                        str(hidden_power_base_power) + ".", source_user)
                     print_usage = False
-                except:
+                except Exception:
                     pass
             if print_usage:
-                self.output_msg(c, "Format: !hiddenpower <HP IV> <Atk IV> <Def IV> <Sp. Atk IV> <Sp. Def IV> <Speed IV>", source_user)
+                output = (
+                    "Format: !hiddenpower "
+                    "<HP IV> <Atk IV> <Def IV> <Sp. Atk IV> <Sp. Def IV> "
+                    "<Speed IV>")
+                self.output_msg(c, output, source_user)
 
         elif line.startswith("!rating"):
             if len(self.ratings.keys()) == 0:
                 try:
-                    SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gTbX1k6rLSf65i9Yv_Ddq2mRLcSFDevNK7AkThD1TBA/gviz/tq?tqx=out:csv&sheet=Tabellenblatt1"
-                    response = urllib.request.urlopen(SPREADSHEET_URL).read().decode('UTF-8')
+                    SPREADSHEET_URL = (
+                        "https://docs.google.com/spreadsheets/d/"
+                        "1gTbX1k6rLSf65i9Yv_Ddq2mRLcSFDevNK7AkThD1TBA/"
+                        "gviz/tq?tqx=out:csv&sheet=Tabellenblatt1")
+                    response = urllib.request.urlopen(
+                        SPREADSHEET_URL).read().decode('UTF-8')
                     skipped_first = False
                     for data_line in response.split("\n"):
-                        if False == skipped_first:
+                        if not skipped_first:
                             skipped_first = True
                             continue
                         values = data_line.split(",")
@@ -3727,8 +4318,10 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                         else:
                             pokemon_rating = int(values[2].replace("\"", ""))
                         self.ratings[pokemon_name] = pokemon_rating
-                except:
-                    self.output_msg(c, "There was a problem retrieving data from the spreadsheet. @pokemodrealtime", source_user)
+                except Exception:
+                    output = ("There was a problem retrieving data "
+                              "from the spreadsheet. @pokemodrealtime")
+                    self.output_msg(c, output, source_user)
 
             if len(line.split(" ")) >= 2:
                 name = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
@@ -3738,49 +4331,68 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
             rating = self.ratings.get(name.lower())
             if rating:
-                self.output_msg(c, "PC's rating for '" + name + "' is: " + str(rating), source_user)
+                self.output_msg(
+                    c, "PC's rating for '" + name + "' is: " + str(rating),
+                    source_user)
             else:
-                self.output_msg(c, "Could not find rating for Pokemon '" + name + "'", source_user)
+                self.output_msg(
+                    c, "Could not find rating for Pokemon '" + name + "'",
+                    source_user)
 
         elif line.startswith("!setdaily"):
             if len(line.split(" ")) >= 2:
-                dailytype = line.split(" ")[1].rstrip("\n").rstrip("\r").lower()
+                dailytype = (
+                    line.split(" ")[1].rstrip("\n").rstrip("\r").lower())
                 # Usage: !setdaily hours 12 -> reset the daily every 12 hours
                 if dailytype.startswith("hours"):
+
                     try:
-                        daily_hours = int(line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
+                        daily_hours = int(
+                            line.split(" ")[2].rstrip("\n").rstrip(
+                                "\r").lower())
                         self.config['daily_hours'] = daily_hours
                         self.config['daily_type'] = "hours"
                         self.daily_hours = daily_hours
                         self.update_config()
 
-                        self.output_msg(c, "Daily now available every " + str(daily_hours) + " hours", source_user)
-                    except:
+                        self.output_msg(
+                            c, "Daily now available every " + str(daily_hours)
+                            + " hours", source_user)
+
+                    except Exception:
                         self.output_msg(c, "Invalid hours amount", source_user)
                 # Usage: !setdaily time 12 -> reset the daily every day at noon
                 elif dailytype.startswith("time"):
                     try:
-                        daily_time = int(line.split(" ")[2].rstrip("\n").rstrip("\r").lower())
+                        daily_time = int(
+                            line.split(" ")[2].rstrip("\n").rstrip(
+                                "\r").lower())
                         if daily_time > 24:
                             daily_time = 24
-                            self.output_msg(c, "Must input a number between 1-24", source_user)
+                            self.output_msg(
+                                c, "Must input a number between 1-24",
+                                source_user)
                         self.config['daily_time'] = daily_time
                         self.config['daily_type'] = "time"
                         self.daily_time = daily_time
                         self.update_config()
 
-                        self.output_msg(c, "Daily now available every day at " + str(daily_time) + ":00 UTC", source_user)
-                    except:
+                        self.output_msg(
+                            c, "Daily now available every day at " +
+                            str(daily_time) + ":00 UTC", source_user)
+                    except Exception:
                         self.output_msg(c, "Invalid time", source_user)
                 else:
-                    self.output_msg(c, "Format: !setdaily <daily type>", source_user)
+                    self.output_msg(c, "Format: !setdaily <daily type>",
+                                    source_user)
             else:
-                self.output_msg(c, "Format: !setdaily <daily type>", source_user)
+                self.output_msg(c, "Format: !setdaily <daily type>",
+                                source_user)
 
         # NEW COMMANDS GO HERE ^^^
 
         else:
-            if True == self.config['extra_commands_on']:
+            if self.config['extra_commands_on']:
                 if len(line.split(" ")) >= 2:
                     cmd = line.split(" ")[0].rstrip("\n").rstrip("\r").lower()
                 else:
@@ -3793,7 +4405,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
                 should_output = False
                 current_time = datetime.datetime.now()
 
-                if None == last_output:
+                if not last_output:
                     should_output = True
                 else:
                     diff = current_time - last_output
@@ -3804,12 +4416,12 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
 
                     if self.is_setrun_command(cmd):
                         message = self.get_current_run_data(cmd)
-                        if None == message:
+                        if not message:
                             message = self.config['extra_commands'].get(cmd)
                     else:
                         message = self.config['extra_commands'].get(cmd)
 
-                    if None != message:
+                    if message:
                         self.output_msg(c, message, source_user)
 
                     # Update last output time
@@ -3824,6 +4436,7 @@ class DrFujiBot(drfujibot_irc.bot.SingleServerIRCBot):
     def do_command(self, e, cmd):
         pass
 
+
 class DrFujiBotDiscord(discord.Client):
     def __init__(self):
         super().__init__()
@@ -3835,25 +4448,29 @@ class DrFujiBotDiscord(discord.Client):
     async def send_dm_wrapper(self, output, user):
         user_object = await self.get_user_info(self.user_ids[user])
         if user_object:
-            msg = await self.send_message(user_object, output)
+            await self.send_message(user_object, output)
         else:
             print('User not found: ' + user)
 
     def discord_output(self, drfujibot, c, output, user, sleeptime=0):
         if self.whisper:
-            asyncio.run_coroutine_threadsafe(self.send_dm_wrapper(output, user), self.loop)
+            asyncio.run_coroutine_threadsafe(
+                self.send_dm_wrapper(output, user), self.loop)
         else:
-            asyncio.run_coroutine_threadsafe(self.send_channel_wrapper(output), self.loop)
+            asyncio.run_coroutine_threadsafe(
+                self.send_channel_wrapper(output), self.loop)
         print(output)
         with open(self.logname, "a") as f:
             f.write(output + "\n")
             f.flush()
 
-    def setProperties(self, username, permitted_users, moderators, g_whisperMode, game, channel_id, logname, bot_type):
+    def setProperties(self, username, permitted_users, moderators,
+                      g_whisperMode, game, channel_id, logname, bot_type):
         self.channel_id = channel_id
         self.logname = logname
         self.whisper = g_whisperMode
-        self.bot = DrFujiBot(username, permitted_users, moderators, g_whisperMode, game, bot_type)
+        self.bot = DrFujiBot(username, permitted_users, moderators,
+                             g_whisperMode, game, bot_type)
         self.bot.permissions = False
         self.bot.output_msg = types.MethodType(self.discord_output, self.bot)
 
@@ -3869,7 +4486,12 @@ class DrFujiBotDiscord(discord.Client):
 
         if source_user not in self.bot.previous_users:
             c = None
-            self.bot.output_msg(c, "I see this may be your first time using DrFujiBot! Feel free to check out the documentation: http://goo.gl/JGG3LT You can also follow me on Twitter! https://twitter.com/drfujibot", source_user)
+            output = (
+                "I see this may be your first time using DrFujiBot! "
+                "Feel free to check out the documentation: "
+                "http://goo.gl/JGG3LT You can also follow me on Twitter! "
+                "https://twitter.com/drfujibot")
+            self.bot.output_msg(c, output, source_user)
 
             self.bot.previous_users[source_user] = 1
             with open('whisper_discord_users.json', 'w') as config_file:
@@ -3882,10 +4504,13 @@ class DrFujiBotDiscord(discord.Client):
 
 g_discordClient = DrFujiBotDiscord()
 
+
 @g_discordClient.event
 async def on_ready():
     print('Connected to Discord')
-    await g_discordClient.change_presence(game=discord.Game(name='with genetic memes'))
+    await g_discordClient.change_presence(
+        game=discord.Game(name='with genetic memes'))
+
 
 @g_discordClient.event
 async def on_message(message):
@@ -3893,7 +4518,8 @@ async def on_message(message):
         if message.channel.is_private:
             line = message.content
             source_user = str(message.author)
-            g_discordClient.on_discord_direct_message(line, source_user, message.author.id)
+            g_discordClient.on_discord_direct_message(line, source_user,
+                                                      message.author.id)
     else:
         if message.channel.id == g_discordClient.channel_id:
             line = message.content
@@ -3901,8 +4527,9 @@ async def on_message(message):
             source_id = message.author.id
             g_discordClient.on_discord_msg(line, source_user, source_id)
 
+
 def main():
-    #logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    # logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     config = None
     with open(sys.argv[1]) as config_file:
         config = json.load(config_file)
@@ -3916,7 +4543,7 @@ def main():
         bot_type = config.get('bot_type')
         channel_id = config.get('channel_id')
         game = None
-        if False == g_whisperMode:
+        if not g_whisperMode:
             game = config.get('games').get(username)
 
         if len(username) >= 1:
@@ -3928,23 +4555,27 @@ def main():
             users.insert(0, 'drfujibot')
             users.insert(0, username.lower())
             print("Permitted users are: " + ", ".join(users))
-            if None != moderators:
+            if moderators:
                 print("Moderators are: " + ", ".join(moderators))
 
             random.seed()
-            
+
             with open(username + ".log", "a") as f:
                 f.write("BOT STARTUP\n")
                 f.flush()
 
             if bot_type and "discord" == bot_type:
                 print('Starting Discord mode')
-                g_discordClient.setProperties(username, permitted_users, moderators, g_whisperMode, game, channel_id, logname, bot_type)
+                g_discordClient.setProperties(username, permitted_users,
+                                              moderators, g_whisperMode, game,
+                                              channel_id, logname, bot_type)
                 discord_key = get_fuji_config_value('discord_key')
                 g_discordClient.run(discord_key)
             else:
-                g_bot = DrFujiBot(username, permitted_users, moderators, g_whisperMode, game, bot_type)
+                g_bot = DrFujiBot(username, permitted_users, moderators,
+                                  g_whisperMode, game, bot_type)
                 g_bot.start()
+
 
 if "__main__" == __name__:
     main()

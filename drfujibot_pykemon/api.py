@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """ pykemon.api
 
 User interaction with this package is done through this file.
@@ -9,6 +8,7 @@ User interaction with this package is done through this file.
 import drfujibot_pykemon.request
 
 from drfujibot_pykemon.request import CHOICES
+
 
 def get(**kwargs):
     """

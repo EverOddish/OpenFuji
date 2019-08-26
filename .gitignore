@@ -112,3 +112,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+#sql files
+*.sql
+*.sqlite
+
+
+# Fujibot configuration file
+DrFujiBot_config.json
